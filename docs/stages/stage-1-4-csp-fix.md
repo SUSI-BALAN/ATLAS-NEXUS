@@ -17,6 +17,14 @@ Automated acceptance requires:
 
 On 2026-10-13, `npm.cmd run typecheck`, the full Vitest suite (12 files, 48 tests), `npm.cmd run build`, `npm.cmd run verify:preload`, and `git diff --check` passed. The build produced and verified the bundled CommonJS preload. The automated session could build the development main and preload bundles and start the Vite renderer server, but its local `node_modules/electron/dist/electron.exe` was absent, so `electron-vite` stopped with `Electron uninstall` before an app process or renderer console existed. Native confirmation is therefore intentionally left to the owner procedure below; no runtime PASS is inferred from the build checks.
 
+## Owner evidence review (2026-10-13)
+
+The owner later supplied four post-fix native Windows screenshots and transcribed PowerShell excerpts. They verify that Electron 44.7.0 was installed in the owner workspace, development mode reached `start electron app...`, and the Dashboard, Clone from URL, Folder Manager, and Settings views visibly rendered. A fifth screenshot is the historical pre-fix blank renderer and is retained only as regression context.
+
+This evidence establishes the development rendering outcome, including that the earlier CSP/preamble failure no longer prevents the UI from appearing. It does not establish a clean post-fix DevTools console, React Fast Refresh, native control activation, production `npm.cmd start`, a `renderer-loaded` diagnostic, or clean shutdown. Repeated Chromium disk/GPU cache initialization warnings (`0x5` / `-2`) were nonfatal to the captured UI, but their exact cache path, effective process identity, ACL/lock cause, and persistence impact remain unverified. Source inspection found no application override of Electron's `sessionData` or cache path. No cache, database, user data, ACL, or security setting was changed during review.
+
+The owner evidence package remains local and untracked because a screenshot exposes a local account/database path. It is not approved for a public Git commit.
+
 ## Owner GUI acceptance
 
 Run from the repository root in a normal, non-administrator Windows PowerShell:

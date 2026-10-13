@@ -1,10 +1,10 @@
 # ATLAS NEXUS — STAGE COMPLETION REPORT
 
 **Stage:** 1 — Windows Desktop Foundation
-**Date:** 2026-10-12
+**Date:** 2026-10-13
 **Branch:** `stage1-windows-desktop-foundation`
-**Commit SHA:** Not available; Stage 1.2 confirmed no stale lock exists, but the managed checkout still denies `.git/index` and `.git/config` writes because the workspace and Git metadata are observed through different identities/permission views. The repository remains unborn.
-**Implementation status:** IMPLEMENTED, ACCEPTANCE INCOMPLETE — Stage 1.1 confirmed Electron fails before `app.whenReady()` in the managed session, including a minimal fixture. Stage 1.2 found no separate owner-run evidence, so native launch/picker/visual acceptance remains open. See `stage-1-native-recovery.md`.
+**Commit SHA:** `40cde378ead191536f6186c6611ebdcb6113cd44` (Stage 1.4), preserving Stage 1 baseline `560b49d` in its history.
+**Implementation status:** IMPLEMENTED, ACCEPTANCE INCOMPLETE — owner evidence now verifies native development startup and rendered Dashboard, Clone from URL, Folder Manager, and Settings views after the Stage 1.4 CSP correction. Native interactions, post-fix console cleanliness, Fast Refresh, production launch, and clean exit remain open. See `stage-1-native-recovery.md`.
 
 ## Implemented features
 
@@ -68,8 +68,24 @@ The Stage 0 terminal-helper failure was intermittent: command execution worked d
 | SQLite schema/restart persistence | PASS | real database reopened; repository/job tables empty |
 | Git URL validation/disabled cloning | PASS | parser and renderer tests; no completion state |
 | Dashboard/navigation/empty states | PASS | jsdom interaction tests; no fabricated records |
-| Native window/dashboard render | NOT RUN | process crashed before UI evidence |
-| Native picker, Explorer, keyboard, theme restart | NOT RUN | no targetable Windows UI session |
+| Native window/dashboard render | PASS | Owner-session development window and rendered Dashboard screenshot supplied on 2026-10-13; production rendering remains NOT RUN |
+| Native picker, Explorer, keyboard, theme restart | NOT RUN | Controls/options are visible in owner screenshots but no interaction or persistence evidence was supplied |
+
+### Owner Windows evidence addendum (2026-10-13)
+
+| Capability | Result | Evidence or limitation |
+| --- | --- | --- |
+| Electron development startup | PASS | Owner-transcribed launch reached `start electron app...`; four post-fix native screenshots visibly render the application |
+| Dashboard, Clone, Folder Manager, Settings rendering | PASS | One owner screenshot for each view; the separate blank-window image is historical pre-fix evidence |
+| Navigation among captured views | PASS | Active sidebar state and distinct rendered pages are visible; not an exhaustive navigation test |
+| Clone remains unavailable in Stage 1 | PASS | Clone view visibly states the engine is not implemented and presents `Start clone in Stage 2`; runtime enforcement continues to be covered by prior automated tests |
+| Post-fix DevTools console and Fast Refresh | NOT RUN | No console capture or harmless-edit HMR record supplied |
+| Browse/cancel, folder creation/collision, Explorer | NOT RUN | Controls are visible but no native interaction result was supplied |
+| Theme switching and restart persistence | NOT RUN | Settings options are visible but were not exercised in the evidence |
+| Keyboard focus/activation | NOT RUN | No keyboard test record supplied |
+| Production launch and `renderer-loaded` | NOT RUN | No owner-session `npm.cmd start` evidence supplied |
+| Clean application exit | NOT RUN | No lifecycle/process-exit record supplied |
+| Chromium disk/GPU cache initialization | WARNING | Repeated `Access is denied (0x5)`, cache creation, and GPU cache `-2` warnings coexist with rendered UI. Exact cache path, effective identity, ACL/lock cause, and persistence impact are unverified; no data or security settings were changed. |
 
 ## Security review
 
@@ -79,7 +95,7 @@ Remaining risks: native picker and real OS permission/missing-drive paths requir
 
 ## Known limitations
 
-- Stage 1 cannot be accepted until an interactive Windows 11 session follows `stage-1-native-recovery.md` and verifies launch, picker, creation/collision, Explorer, keyboard focus, themes, and restart persistence.
+- Stage 1 cannot be accepted until an interactive Windows 11 session completes the remaining checks in `stage-1-native-recovery.md`: post-fix DevTools/Fast Refresh, picker cancel/select, creation/collision, Explorer, keyboard focus/activation, theme switching/restart persistence, production launch/diagnostics, and clean exit.
 - Git cloning, progress, cancellation, retry, verification, LFS, and submodules are intentionally absent.
 - No installer or signed artifact exists.
 - Atlas reuse remains blocked by missing root-license evidence. GPT Researcher integration is deferred; no code was copied.
