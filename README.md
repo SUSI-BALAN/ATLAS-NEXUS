@@ -21,12 +21,13 @@ SQLite is provided by the pure-WASM `sql.js` driver. This avoids Electron native
 git clone https://github.com/SUSI-BALAN/ATLAS-NEXUS.git
 Set-Location -LiteralPath 'ATLAS-NEXUS'
 npm.cmd ci
+npx.cmd --no-install install-electron
 Test-Path -LiteralPath '.\node_modules\electron\dist\electron.exe'
 Test-Path -LiteralPath '.\node_modules\electron\path.txt'
 npx.cmd --no-install electron --version
 ```
 
-Both paths should exist and Electron should report `v44.7.0`. If the binary is missing, inspect `npm.cmd config get ignore-scripts` and whether `ELECTRON_SKIP_BINARY_DOWNLOAD` is set, resolve the installation cause, then rerun `npm.cmd ci` without disabling TLS or security protections.
+Electron 44.7.0 downloads its desktop binary separately from `npm ci`; the explicit `install-electron` command uses the locked package and skips downloading when that version is already installed. Both paths should then exist and Electron should report `v44.7.0`. If installation fails, inspect its actual error and network access, then retry `npx.cmd --no-install install-electron` after resolving the cause. Keep TLS verification and Electron security protections enabled.
 
 Run development mode with `npm.cmd run dev`. Run verification from the repository root:
 
