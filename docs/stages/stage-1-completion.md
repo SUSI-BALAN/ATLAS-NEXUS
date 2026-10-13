@@ -8,6 +8,10 @@
 
 ## Implemented features
 
+### Stage 1.4 CSP correction
+
+The owner subsequently confirmed that Electron launches in a normal Windows 11 session and exposed a development-only renderer failure: Vite's inline React Refresh preamble was blocked by the strict CSP. Stage 1.4 adds a SHA-256 allowance for the exact preamble exported by the pinned `@vitejs/plugin-react` only in development, plus loopback-only HTTP/WebSocket HMR connections. Packaged production remains `script-src 'self'; connect-src 'self'`. Policy regression tests, typecheck, all 48 tests, production build, and preload verification pass. The automated session lacked the local Electron executable, so final development/production GUI confirmation remains an owner acceptance step documented in `stage-1-4-csp-fix.md`.
+
 - npm workspace monorepo with exact dependency versions and strict TypeScript project references.
 - Electron main process with context isolation, renderer sandboxing, disabled Node integration, denied permissions/navigation/popups, local CSP, and centralized startup error handling.
 - Narrow frozen preload API and typed IPC contracts. Privileged handlers validate Zod payloads, owning web contents, main frame, and development origin.

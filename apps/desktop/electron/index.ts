@@ -40,7 +40,7 @@ app.whenReady().then(async () => {
   app.setAppUserModelId("com.atlasnexus.desktop");
   session.defaultSession.setPermissionRequestHandler((_webContents, _permission, callback) => callback(false));
   session.defaultSession.setPermissionCheckHandler(() => false);
-  installContentSecurityPolicy(session.defaultSession);
+  installContentSecurityPolicy(session.defaultSession, !app.isPackaged);
   try { await createWindow(); } catch (error) { diagnostics.record("startup-failed", { name: (error as Error).name }); console.error("Atlas Nexus failed to start", { errorName: (error as Error).name }); app.quit(); }
   app.on("activate", () => { if (BrowserWindow.getAllWindows().length === 0) void createWindow(); });
 });

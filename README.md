@@ -29,6 +29,8 @@ npm.cmd run diagnose:electron
 
 After a successful build, `npm.cmd start` runs the production preview. The current managed session could not provide native window evidence; run it from a normal interactive Windows desktop before accepting Stage 1.
 
+Stage 1.4 uses an exact SHA-256 CSP allowance for Vite's React Refresh preamble only during development. Production has no preamble hash, localhost connection, or WebSocket exception. See the [Stage 1.4 CSP acceptance procedure](docs/stages/stage-1-4-csp-fix.md).
+
 For an opt-in, local-only lifecycle trace in PowerShell:
 
 ```powershell
