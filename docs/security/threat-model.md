@@ -1,0 +1,40 @@
+# Atlas Nexus threat model
+
+Stage 0 design, 2026-10-12. Controls below are requirements; no application runtime exists to enforce them yet. The local OS account is trusted to approve actions, but repository data, web metadata, file contents, AI output, and renderer payloads are untrusted. A compromised OS/admin account is outside the protection promise. External concurrent filesystem mutation remains a risk requiring fail-closed validation.
+
+## Assets and boundaries
+
+Protect existing user files and destination folders; original repository bytes; SQLite metadata; provider/AI credentials; private source; manifests and reports; process/network resources; Atlas production and both upstream source repositories. Boundaries: renderer -> preload -> main; main -> filesystem/Git/SQLite; filesystem -> static scanners; selected evidence -> AI wrapper/provider; optional paired Android -> desktop. There is no listener in the initial desktop design.
+
+| ID | Threat / attack surface | Required mitigation | Regression / stage |
+| --- | --- | --- | --- |
+| T01 | Malicious URL invokes helper, file transport, command flags, or credential leak | Strict parsed provider URL allowlist; no credentials/query/fragment; argument arrays; no shell; controlled Git config/env | Protocol, malformed/encoded URL, leading flag, redaction fixtures / 2 |
+| T02 | Traversal, Windows reserved names, ADS, case collision, drive/device namespace | Single child segment; canonical resolved parent; Windows device-name policy; exclusive mkdir; reject unsupported paths | CON.txt, NUL, COM/LPT variants, dot/space endings, separators, colon, alternate namespaces / 1-2 |
+| T03 | Junction/symlink escape and TOCTOU destination replacement | Validate parent identity and reparse points at approval and write; tested no-replace publication; fail on uncertain containment | Parent/link replacement and concurrent destination creation / 1-2 |
+| T04 | Clone overwrites or cleanup deletes unrelated data | Unique app-owned staging ledger; no force deletion/replacement; no-replace promotion; exact owned cleanup only | Existing file/dir, collision race, foreign marker, recovery safety / 2-3 |
+| T05 | Git hooks, external filters, LFS, submodules, global config, URL rewrite execute or fetch unexpected content | Trusted Git executable/template; isolated config; hooks/filters/helpers off; no recursive submodule; skip LFS smudge; secure transport | Hostile template/config, .gitattributes filter, LFS/submodule fixtures / 2 |
+| T06 | Archive traversal/bomb, malicious tree entries, Windows checkout aliases | Prefer validated tree materialization; preflight paths/case/types; reject escaping links, resource excess; if archive introduced enforce entry/byte quotas before extraction | ../, absolute paths, link chains, case/ADS collisions, inflated sizes / 2 |
+| T07 | CPU/memory/disk exhaustion and runaway processes | Bounded workers/output/time/files/bytes; disk rechecks; cancellation kills owned process tree; safe Partial/Failed outcomes | Large tree, disk-full, hanging child, cancellation / 2-4,9 |
+| T08 | Forged IPC or compromised renderer gets filesystem/command privileges | Typed narrow bridge; sender/window/frame/origin checks; runtime schemas; directory grants; no raw IPC/fs/process | Forged iframe/sender, extra fields, arbitrary paths, malformed grants / 1,9 |
+| T09 | Repository README/metadata or AI output executes HTML/JS or opens unsafe links | Plain text/safe Markdown, no active HTML; CSP; deny popups/navigation; validate external links | HTML/event handlers, javascript/data URLs, terminal control sequences / 1,4-5,8 |
+| T10 | Scanner executes source/scripts or reads external/private files | Static bounded parsing; never import/run/install; lstat boundaries; binary handling; skip escaping links | Script traps, symlinks, malformed/huge manifests / 4 |
+| T11 | Secrets leak into logs/reports/frontend/cloud prompts | Privileged encrypted credentials; no renderer secret return; structured redaction; category/path findings; explicit scoped cloud consent | Synthetic secret redaction, rejected consent, bundle/log scan / 4-6,9 |
+| T12 | Prompt injection changes policy; fabricated citations imply evidence | Repository text is data; no model tools/commands; fixed system policy; allowed evidence IDs/path/hash/range checks; uncertainty | Injected README, unknown/stale citation, unsupported claim / 5 |
+| T13 | AI wrapper performs SSRF, cloud egress, local-file access, MCP commands | Bounded stdio wrapper; approved exports; disable MCP/arbitrary config; egress policy; loopback auth if HTTP needed | Private IP/redirect, local-only traffic test, arbitrary path/command / 5 |
+| T14 | SQLite injection, crash corruption, destructive migration | Parameterized queries; transactional migrations; backups/authorization for destructive changes; verified recovery; separate source files | Injection values, mid-transaction crash, backup restore / 1,3,9 |
+| T15 | Interrupted job falsely marked complete or resumed unsafely | Durable event/state record; startup reconciliation; verify before promotion/completion; distinguish Partial and Interrupted | Kill during download/verify/promote/DB record / 2-3 |
+| T16 | Android broad storage/network access or unauthorized desktop clone | SAF grants, revocation handling, authenticated opt-in pairing, per-device scope; no default listener | Denied/revoked grants, expired pairing, unauthorized device / 7 |
+| T17 | Dependency/build compromise or misleading release | Pinned lockfiles, reviewed install scripts, dependency/license scans, reproducible build and artifact identity, explicit publication authority | Fresh build, staged secret scan, installer/device tests / 1,9 |
+| T18 | Website snapshot SSRF / scripts / misleading full-source claim | Separate opt-in scope; DNS/IP and every redirect validation; public resources only; size/type/path limits; no scripts | DNS rebinding, IPv4/IPv6 private ranges, redirects, archive paths / deferred |
+
+## Resource-policy starting proposal
+
+Stage 2 starts with one active clone; bounded queue/events and 64 KiB capped/redacted log tail; explicit operation timeout; per-operation configurable disk quota and minimum free-space reserve. Stage 4 starts with bounded file count, total bytes, per-file read size, and scan timeout. Choose and test concrete numeric limits in their stage rather than silently allow unlimited work. Unknown provider sizes must remain unknown. Free-space estimates do not eliminate disk-full races. Permission failures are visible errors; do not elevate automatically.
+
+## Completion semantics
+
+Git exit zero is insufficient: integrity, revision, materialized entries, and manifest checks must pass. A successful ordinary clone does not prove hidden remote objects, LFS payloads, submodules, or external dependencies were acquired. Security flags cannot be disabled just to pass a fixture. Reports must identify skipped/unsupported resources and the exact verification scope.
+
+## Stage 0 security review
+
+Only documentation and ignore rules are added in Nexus. No runtime filesystem access, IPC, network listener, Git clone, database, credential store, or AI integration was built. Reference review was read-only. No credentials were copied; .env files and Git historical diffs were not inspected. Potential source reuse licensing and GPT Researcher backend/configuration risks are recorded in reference-review.md. Runtime mitigation tests are NOT RUN until their owning stage.
