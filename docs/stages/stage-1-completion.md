@@ -4,7 +4,7 @@
 **Date:** 2026-10-13
 **Branch:** `stage1-windows-desktop-foundation`
 **Commit SHA:** `40cde378ead191536f6186c6611ebdcb6113cd44` (Stage 1.4), preserving Stage 1 baseline `560b49d` in its history.
-**Implementation status:** IMPLEMENTED, ACCEPTANCE INCOMPLETE — owner evidence now verifies native development startup and rendered Dashboard, Clone from URL, Folder Manager, and Settings views after the Stage 1.4 CSP correction. Native interactions, post-fix console cleanliness, Fast Refresh, production launch, and clean exit remain open. See `stage-1-native-recovery.md`.
+**Implementation status:** IMPLEMENTED, STAGE 1 ACCEPTED — owner evidence verifies native development startup and rendered Dashboard, Clone from URL, Folder Manager, and Settings views after the Stage 1.4 CSP correction. On 2026-10-13, the owner additionally reported PASS for the post-fix console, Fast Refresh, native picker and cancellation, disposable folder creation and collision protection, exact-destination Explorer opening, theme switching and restart persistence, keyboard operation, production rendering with `renderer-loaded`, and clean shutdown. These final outcomes are recorded as owner-reported; no additional console capture, diagnostic file, or interaction recording was independently inspected in the sign-off session.
 
 ## Implemented features
 
@@ -68,8 +68,8 @@ The Stage 0 terminal-helper failure was intermittent: command execution worked d
 | SQLite schema/restart persistence | PASS | real database reopened; repository/job tables empty |
 | Git URL validation/disabled cloning | PASS | parser and renderer tests; no completion state |
 | Dashboard/navigation/empty states | PASS | jsdom interaction tests; no fabricated records |
-| Native window/dashboard render | PASS | Owner-session development window and rendered Dashboard screenshot supplied on 2026-10-13; production rendering remains NOT RUN |
-| Native picker, Explorer, keyboard, theme restart | NOT RUN | Controls/options are visible in owner screenshots but no interaction or persistence evidence was supplied |
+| Native development and production rendering | PASS | Owner-session development screenshots were inspected; owner later reported production Dashboard rendering and a `renderer-loaded` diagnostic. The final production diagnostic file was not independently inspected. |
+| Native picker, creation/collision, Explorer, keyboard, theme restart | PASS | Owner reported all interactions passed on Windows 11 on 2026-10-13. Automated folder and persistence coverage also passes; no new interaction recording was independently inspected. |
 
 ### Owner Windows evidence addendum (2026-10-13)
 
@@ -87,6 +87,12 @@ The Stage 0 terminal-helper failure was intermittent: command execution worked d
 | Clean application exit | NOT RUN | No lifecycle/process-exit record supplied |
 | Chromium disk/GPU cache initialization | WARNING | Repeated `Access is denied (0x5)`, cache creation, and GPU cache `-2` warnings coexist with rendered UI. Exact cache path, effective identity, ACL/lock cause, and persistence impact are unverified; no data or security settings were changed. |
 
+### Final owner native sign-off (2026-10-13)
+
+The owner directly reported PASS for all nine remaining Windows 11 acceptance groups: clean post-fix DevTools console, React Fast Refresh, picker open/cancel, disposable folder selection and creation, duplicate rejection without overwrite, exact-destination Explorer opening, System/Dark/Light switching with restart persistence, keyboard focus and activation, and production rendering with `renderer-loaded` followed by clean shutdown. This report is first-party owner evidence supplied in the acceptance conversation. It is deliberately distinguished from independently inspected artifacts: no new console export, production diagnostic JSONL, screenshots, or process listing accompanied the final report.
+
+The absence of those supplemental artifacts does not contradict the owner's executed results, but they remain desirable provenance for a future release-evidence package. Chromium cache warnings remain a nonfatal WARNING; `DEP0205` and the renderer bundle-size warning remain maintenance items.
+
 ## Security review
 
 The renderer has no unrestricted Node, filesystem, shell, or process API. The preload exposes only allowlisted calls. IPC is payload-validated and limited to the owning main frame and expected origin. Folder writes require a native-selection grant; the service canonicalizes the parent, rejects links/reparse points and unsafe names/namespaces, and creates exclusively. Errors expose stable codes, not stacks. No clone command, source execution, remote fetch, secret, credential, or reference-project source was added.
@@ -95,7 +101,7 @@ Remaining risks: native picker and real OS permission/missing-drive paths requir
 
 ## Known limitations
 
-- Stage 1 cannot be accepted until an interactive Windows 11 session completes the remaining checks in `stage-1-native-recovery.md`: post-fix DevTools/Fast Refresh, picker cancel/select, creation/collision, Explorer, keyboard focus/activation, theme switching/restart persistence, production launch/diagnostics, and clean exit.
+- Stage 1 native acceptance is complete based on the owner's direct Windows 11 sign-off. Supplemental console, production diagnostic, and interaction artifacts remain desirable for release provenance but are not represented as independently inspected evidence.
 - Git cloning, progress, cancellation, retry, verification, LFS, and submodules are intentionally absent.
 - No installer or signed artifact exists.
 - Atlas reuse remains blocked by missing root-license evidence. GPT Researcher integration is deferred; no code was copied.
@@ -123,4 +129,4 @@ Atlas-Nexus/
 
 ## Next stage
 
-**Stage 2 readiness: NO-GO pending Stage 1 native acceptance.** Rerun `npm.cmd start` in an ordinary interactive Windows 11 desktop and complete F01, F02, and the visual portions of F06. Resolve defects through FIX STAGE. After those gates pass, the contracts are suitable for a separately approved Stage 2. Do not begin Stage 2 without `NEXT STAGE`.
+**Stage 2 readiness: READY FOR SEPARATE OWNER AUTHORIZATION.** Stage 1 acceptance gates are recorded as passed through automated verification, inspected owner screenshots, and the owner's direct final Windows 11 sign-off. Noncritical Chromium cache, `DEP0205`, and bundle-size warnings remain documented. This report does not authorize Stage 2 implementation, a GitHub push, or deployment.
