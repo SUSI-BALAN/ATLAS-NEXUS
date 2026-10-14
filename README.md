@@ -6,7 +6,7 @@ Local-first repository cloning, source inspection, and optional research for Win
 
 Stage 2 is implemented on the local `codex/stage2-secure-clone-engine` branch. Atlas Nexus now performs explicitly confirmed public GitHub HTTPS source snapshots, full working clones, and bare mirrors through an isolated main-process Git service. Clone jobs, resolved commits, phases, safe errors, cancellation, retry lineage, verification summaries, and interruption recovery are persisted in SQLite. Native owner acceptance is still pending; no installer or Android application is available yet.
 
-Stage 2 automated verification includes 55 routine tests and five separately gated live GitHub tests. The live fixture validates all three modes, cancellation with explicit retry, and an unavailable-repository failure. See the [Stage 2 completion report](docs/stages/stage-2-completion.md) for exact evidence and remaining native checks.
+Stage 2.1 adds truthful unsuccessful-job progress, phase-aware safe errors, schema migration 3, hostile Git execution-isolation fixtures, active process cancellation coverage, reparse/collision tests, and resource fault coverage. See the [Stage 2 completion report](docs/stages/stage-2-completion.md) and [owner acceptance procedure](docs/testing/stage-2-owner-acceptance.md) for exact evidence and remaining native checks.
 
 ## Requirements
 

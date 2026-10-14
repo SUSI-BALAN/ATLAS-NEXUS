@@ -11,7 +11,7 @@
 
 ## Implemented modules
 
-`CloneService` is the single trusted clone/process controller. Existing FolderService grants, validated IPC, CommonJS preload bridge, React shell, and sql.js database are extended rather than replaced. SQLite migration 2 adds durable phase, progress, commit, verification, safe-error, retry, and lifecycle timestamps. Legal state transitions and serialized writes prevent terminal jobs from becoming completed later; startup reconciliation marks unfinished work Interrupted without automatic network retry.
+`CloneService` is the single trusted clone/process controller. Existing FolderService grants, validated IPC, CommonJS preload bridge, React shell, and sql.js database are extended rather than replaced. SQLite migration 2 adds durable phase, progress, commit, verification, safe-error, retry, and lifecycle timestamps. Additive migration 3 clears stale progress from unsuccessful terminal records and normalizes Completed to 100 without deleting any job. Legal state transitions and serialized writes prevent terminal jobs from becoming completed later; startup reconciliation marks unfinished work Interrupted without automatic network retry.
 
 The renderer now provides URL, mode, native parent selection, child name, exact destination preview, a required confirmation, real phase status, cancellation, two-step retry confirmation, completed destination opening, persisted Clone Manager history, and real Dashboard counts. Stage 3 Vault, Stage 4 Source Inspector, and Stage 5 AI Research remain future features.
 
@@ -35,7 +35,7 @@ The live gated suite uses the small public `https://github.com/octocat/Hello-Wor
 ## Verification evidence
 
 - Baseline: `npm.cmd run check` — 12 files / 48 tests passed; production build and CommonJS preload verified.
-- Stage 2 routine suite: 13 files passed plus one gated live file skipped; 55 tests passed and 5 live cases skipped during the routine run.
+- Stage 2.1 routine suite: 15 files passed plus one gated live file skipped; 76 tests passed and 5 live cases skipped during the routine run.
 - Stage 2 live suite: one file / 5 tests passed for three real modes, cancel/retry, and unavailable-repository handling.
 - `npm.cmd run typecheck` — PASS.
 - `npm.cmd run build` — PASS; CommonJS preload verified.
@@ -43,19 +43,23 @@ The live gated suite uses the small public `https://github.com/octocat/Hello-Wor
 - `git diff --check` — PASS apart from informational LF-to-CRLF conversion warnings.
 - First staged secret-pattern scan — zero matches.
 
+## Stage 2.1 final hardening
+
+- Failed, Cancelled, Interrupted, and Partial jobs now persist `progressPercent = null`, including existing records migrated from schema version 2. The Clone Manager ignores stale numeric values for every unsuccessful status and renders an explicit “not completed” terminal state. Only Completed can display a green 100% bar.
+- Git subprocess failures are phase-aware. Explicit authentication denial maps to `PRIVATE_REPOSITORY`; missing/private/indistinguishable prompt-blocked sources map to `REPOSITORY_UNAVAILABLE`; TLS/DNS/connectivity failures map to `TRANSPORT_ERROR`; post-download Git failures map to `VERIFICATION_FAILED`; destination races remain `PATH_COLLISION`. Raw Git output is not exposed to the renderer.
+- GitHub deliberately does not reliably distinguish a nonexistent public URL from a private repository to unauthenticated callers. The unavailable message therefore states “not found, private, or unavailable” instead of claiming knowledge the application does not have.
+- G03 now has an instrumented hostile local Git fixture proving that checkout hooks, inherited external filters, LFS smudge, inherited URL rewrites, local transport, and recursive submodules do not execute or fetch unexpectedly.
+- G04–G06 coverage now includes real temporary-filesystem collision and reparse substitution, exact ownership-ledger cleanup, retained foreign staging, actual file/byte limit failures, active Git-process cancellation, persisted interruption normalization, and synthetic OS error-code mapping for permission, collision, disk-full, and quota failures.
+- Final Stage 2.1 verification: typecheck PASS; 15 routine test files / 76 tests PASS; one gated live file / 5 GitHub tests PASS; production build PASS; bundled CommonJS preload PASS; npm audit reports 0 vulnerabilities across 299 dependencies; `git diff --check` PASS with informational line-ending warnings only.
+
 ## Native Windows acceptance
 
-NOT RUN in an owner-controlled interactive Windows desktop for this implementation session. Automated and live subprocess evidence does not establish native picker interaction, visible progress/cancel timing, restart behavior, production GUI cloning, Explorer opening, clean application shutdown during an active clone, real permission denial, disk-full/quota handling, or reparse substitution resistance.
+The owner reported successful Windows application Snapshot, Full Clone, and Mirror downloads and PowerShell-confirmed Git structures. These outcomes establish owner-reported native G01 evidence only. Active cancellation, confirmed retry, history persistence after restart, production-mode cloning, and clean shutdown were not reported and remain NOT RUN. Automated and live subprocess evidence does not establish those UI outcomes or real owner-session permission denial and disk-full behavior.
 
 Owner procedure:
 
-1. In a disposable local parent, launch `npm.cmd run dev`; confirm Dashboard, Settings, themes, keyboard navigation, and the native picker still work.
-2. Clone the same small approved public fixture separately as snapshot, full, and mirror. Confirm exact destinations, snapshot has no `.git`, full has `.git` and a working tree, and mirror is bare without a working tree.
-3. Pre-create a target and confirm no overwrite. Start another clone, cancel while active, confirm no final destination, then use Review retry and Confirm retry.
-4. Restart after observing persisted completed/failed/cancelled history. Separately terminate the app during an active disposable job and confirm it becomes Interrupted and does not restart automatically.
-5. Exercise a real permission-denied parent, offline/network failure, low-space disposable volume if safely available, and a concurrent destination creation. Verify unrelated file hashes remain unchanged.
-6. Run `npm.cmd run build` and `npm.cmd start`; repeat one successful mode, open its destination, close during idle and active work, and inspect DevTools/diagnostics for CSP, preload, renderer, and shutdown errors.
+The remaining procedure is maintained in [Stage 2 owner acceptance](../testing/stage-2-owner-acceptance.md). It uses new disposable child names only and must not touch the owner's successful clones or existing SQLite records.
 
 ## Decision
 
-**PENDING NATIVE ACCEPTANCE.** Core implementation, routine automation, and public GitHub mode tests pass. G03 retains an instrumented-hostile-fixture warning and G06 retains real Windows fault-injection gaps. These are not silently upgraded to PASS. Stage 3 must not begin until the owner accepts Stage 2 or explicitly authorizes work despite the documented gaps.
+**PENDING NATIVE ACCEPTANCE.** G01–G05 pass with the evidence qualifications above. G06 retains real owner-session offline, ACL-denied, and disk-full/quota checks. Required native active cancellation, confirmed retry, restart persistence, production-mode cloning, and clean shutdown remain NOT RUN. Stage 3 must not begin until the owner accepts Stage 2 or explicitly authorizes work despite these documented gaps.
