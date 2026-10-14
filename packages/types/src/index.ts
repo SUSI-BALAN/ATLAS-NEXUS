@@ -1,5 +1,6 @@
 export type ThemePreference = "system" | "dark" | "light";
 export type CloneMode = "snapshot" | "full" | "mirror";
+export type GitProvider = "github" | "gitlab" | "codeberg" | "gitea" | "forgejo";
 export type CloneJobStatus = "Queued" | "Validating" | "Downloading" | "Verifying" | "Completed" | "Partial" | "Failed" | "Cancelled" | "Interrupted";
 
 export type ErrorCode =
@@ -17,6 +18,7 @@ export type ErrorCode =
   | "PRIVATE_REPOSITORY"
   | "REPOSITORY_UNAVAILABLE"
   | "TRANSPORT_ERROR"
+  | "RATE_LIMITED"
   | "NETWORK_ERROR"
   | "DOWNLOAD_TIMEOUT"
   | "RESOURCE_LIMIT"
@@ -56,11 +58,22 @@ export interface AppStatus {
   cloneEngineAvailable: boolean;
 }
 
-export interface GitUrlDetails { normalizedUrl: string; owner: string; repository: string }
+export interface GitUrlDetails {
+  normalizedUrl: string;
+  provider: GitProvider;
+  providerLabel: string;
+  hostname: string;
+  namespace: string;
+  owner: string;
+  repository: string;
+}
 
 export interface CloneJob {
   id: string;
   sourceUrl: string;
+  provider: GitProvider;
+  namespace: string;
+  repositoryName: string;
   mode: CloneMode;
   destinationPath: string;
   status: CloneJobStatus;

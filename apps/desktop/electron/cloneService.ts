@@ -4,7 +4,7 @@ import path from "node:path";
 import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
 import type { CloneJob, CloneMode, ErrorCode } from "@atlas-nexus/types";
 import type { NexusDatabase } from "@atlas-nexus/storage";
-import { parseGitHubUrl } from "@atlas-nexus/validation";
+import { parseGitRemoteUrl } from "@atlas-nexus/validation";
 import { validateWindowsFolderName } from "@atlas-nexus/security";
 import { FolderService, FolderServiceError } from "./folderService.js";
 
@@ -70,9 +70,10 @@ export class CloneService {
   }
 
   async start(input: { sourceUrl: string; mode: CloneMode; grantId: string; childName: string; retryOfJobId?: string }): Promise<CloneJob> {
-    const source = parseGitHubUrl(input.sourceUrl);
+    let source;
+    try { source = parseGitRemoteUrl(input.sourceUrl); } catch (error) { throw new CloneServiceError("INVALID_INPUT", (error as Error).message); }
     const target = await this.folders.resolveCloneDestination(input.grantId, input.childName);
-    const job = await this.database.createCloneJob({ id: randomUUID(), sourceUrl: source.normalizedUrl, mode: input.mode, destinationPath: target.destinationPath, ...(input.retryOfJobId ? { retryOfJobId: input.retryOfJobId } : {}) });
+    const job = await this.database.createCloneJob({ id: randomUUID(), sourceUrl: source.normalizedUrl, provider: source.provider, namespace: source.namespace, repositoryName: source.repository, mode: input.mode, destinationPath: target.destinationPath, ...(input.retryOfJobId ? { retryOfJobId: input.retryOfJobId } : {}) });
     const controller = new AbortController();
     this.active.set(job.id, { controller, process: null });
     this.queue = this.queue.then(() => this.execute(job.id, input.grantId, input.childName, target.parentPath, target.destinationPath, controller.signal)).catch(() => undefined);
@@ -208,11 +209,12 @@ async function runGit(args: string[], env: NodeJS.ProcessEnv, signal: AbortSigna
 
 export function classifyGitFailure(output: string, operation: GitOperation): CloneServiceError {
   const normalized = output.toLowerCase();
+  if (/too many requests|rate limit(?:ed| exceeded)?|http (?:error )?429|the requested url returned error: 429/.test(normalized)) return new CloneServiceError("RATE_LIMITED", "The repository provider temporarily refused the request because its rate limit was reached.");
   if (/authentication failed|permission denied/.test(normalized)) return new CloneServiceError("PRIVATE_REPOSITORY", "The repository requires credentials or access that Atlas Nexus does not use.");
   if (/repository not found|not found|does not appear to be a git repository|could not read username|terminal prompts disabled/.test(normalized)) return new CloneServiceError("REPOSITORY_UNAVAILABLE", "The repository was not found, is private, or is unavailable.");
   if (operation === "verification") return new CloneServiceError("VERIFICATION_FAILED", "The downloaded Git data could not be verified.");
-  if (/could not resolve host|failed to connect|connection (?:timed out|refused|reset)|ssl|tls|schannel|certificate|network is unreachable/.test(normalized)) return new CloneServiceError("TRANSPORT_ERROR", "GitHub could not be reached securely.");
-  return new CloneServiceError("NETWORK_ERROR", "The GitHub download failed before verification.");
+  if (/could not resolve host|failed to connect|connection (?:timed out|refused|reset)|ssl|tls|schannel|certificate|network is unreachable/.test(normalized)) return new CloneServiceError("TRANSPORT_ERROR", "The repository provider could not be reached securely.");
+  return new CloneServiceError("NETWORK_ERROR", "The repository download failed before verification.");
 }
 
 function terminateOwnedProcess(child: ChildProcessWithoutNullStreams): void {

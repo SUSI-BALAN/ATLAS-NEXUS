@@ -14,7 +14,7 @@ describe("Clone Manager progress truthfulness", () => {
 
 function job(overrides: Partial<CloneJob>): CloneJob {
   return {
-    id: "11111111-1111-4111-8111-111111111111", sourceUrl: "https://github.com/octocat/Hello-World.git", mode: "full", destinationPath: "D:\\Repos\\fixture",
+    id: "11111111-1111-4111-8111-111111111111", sourceUrl: "https://github.com/octocat/Hello-World.git", provider: "github", namespace: "octocat", repositoryName: "Hello-World", mode: "full", destinationPath: "D:\\Repos\\fixture",
     status: "Failed", phase: "Failed", progressPercent: null, resolvedCommit: null, verificationSummary: null, errorCode: null, errorMessage: null,
     retryOfJobId: null, createdAt: "2026-10-14T00:00:00.000Z", updatedAt: "2026-10-14T00:00:00.000Z", startedAt: null, completedAt: null, ...overrides
   };

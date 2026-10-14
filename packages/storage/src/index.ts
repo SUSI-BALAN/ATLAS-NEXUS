@@ -2,7 +2,7 @@ import { mkdir, readFile, rename, unlink, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { createRequire } from "node:module";
 import initSqlJs, { type Database, type SqlJsStatic } from "sql.js";
-import type { AppSettings, CloneJob, CloneJobStatus, CloneMode, ErrorCode, ThemePreference } from "@atlas-nexus/types";
+import type { AppSettings, CloneJob, CloneJobStatus, CloneMode, ErrorCode, GitProvider, ThemePreference } from "@atlas-nexus/types";
 
 const require = createRequire(import.meta.url);
 
@@ -38,10 +38,19 @@ const migrations = [
       UPDATE clone_jobs SET progress_percent = NULL WHERE status IN ('Partial','Failed','Cancelled','Interrupted');
       UPDATE clone_jobs SET progress_percent = 100 WHERE status = 'Completed';
     `
+  },
+  {
+    version: 4,
+    sql: `
+      ALTER TABLE clone_jobs ADD COLUMN provider TEXT;
+      ALTER TABLE clone_jobs ADD COLUMN namespace TEXT;
+      ALTER TABLE clone_jobs ADD COLUMN repository_name TEXT;
+      UPDATE clone_jobs SET provider = 'github' WHERE provider IS NULL AND source_url LIKE 'https://github.com/%';
+    `
   }
 ] as const;
 
-type CloneJobInsert = Pick<CloneJob, "id" | "sourceUrl" | "mode" | "destinationPath"> & { retryOfJobId?: string | null };
+type CloneJobInsert = Pick<CloneJob, "id" | "sourceUrl" | "provider" | "namespace" | "repositoryName" | "mode" | "destinationPath"> & { retryOfJobId?: string | null };
 type CloneJobUpdate = Partial<Pick<CloneJob, "status" | "phase" | "progressPercent" | "resolvedCommit" | "verificationSummary" | "errorCode" | "errorMessage" | "startedAt" | "completedAt">>;
 
 export class NexusDatabase {
@@ -76,7 +85,18 @@ export class NexusDatabase {
         this.database.run("COMMIT;");
       } catch (error) { this.database.run("ROLLBACK;"); throw error; }
     }
+    this.backfillLegacyCloneSources();
     await this.persist();
+  }
+
+  private backfillLegacyCloneSources(): void {
+    const statement = this.database.prepare("SELECT id, source_url FROM clone_jobs WHERE provider IS NULL OR namespace IS NULL OR repository_name IS NULL");
+    const rows: Array<{ id: string; sourceUrl: string }> = [];
+    try { while (statement.step()) { const row = statement.getAsObject(); rows.push({ id: String(row.id), sourceUrl: String(row.source_url) }); } } finally { statement.free(); }
+    for (const row of rows) {
+      const parsed = parseStoredSource(row.sourceUrl);
+      if (parsed) this.database.run("UPDATE clone_jobs SET provider=?, namespace=?, repository_name=? WHERE id=?", [parsed.provider, parsed.namespace, parsed.repository, row.id]);
+    }
   }
 
   getSettings(): AppSettings {
@@ -98,8 +118,8 @@ export class NexusDatabase {
   async createCloneJob(input: CloneJobInsert): Promise<CloneJob> {
     return this.serialize(async () => {
       const now = new Date().toISOString();
-      this.database.run(`INSERT INTO clone_jobs(id, source_url, mode, destination_path, status, phase, retry_of_job_id, created_at, updated_at)
-        VALUES (?, ?, ?, ?, 'Queued', 'Queued', ?, ?, ?)`, [input.id, input.sourceUrl, input.mode, input.destinationPath, input.retryOfJobId ?? null, now, now]);
+      this.database.run(`INSERT INTO clone_jobs(id, source_url, provider, namespace, repository_name, mode, destination_path, status, phase, retry_of_job_id, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, 'Queued', 'Queued', ?, ?, ?)`, [input.id, input.sourceUrl, input.provider, input.namespace, input.repositoryName, input.mode, input.destinationPath, input.retryOfJobId ?? null, now, now]);
       await this.persist(); return this.getCloneJob(input.id)!;
     });
   }
@@ -182,10 +202,27 @@ function mapCloneJob(row: Record<string, unknown>): CloneJob {
   const text = (key: string): string => String(row[key] ?? "");
   const nullable = (key: string): string | null => row[key] === null || row[key] === undefined ? null : String(row[key]);
   return {
-    id: text("id"), sourceUrl: text("source_url"), mode: text("mode") as CloneMode, destinationPath: text("destination_path"),
+    id: text("id"), sourceUrl: text("source_url"), provider: (nullable("provider") ?? "github") as GitProvider,
+    namespace: nullable("namespace") ?? inferLegacySource(text("source_url")).namespace,
+    repositoryName: nullable("repository_name") ?? inferLegacySource(text("source_url")).repository,
+    mode: text("mode") as CloneMode, destinationPath: text("destination_path"),
     status: text("status") as CloneJobStatus, phase: text("phase"), progressPercent: row.progress_percent === null || row.progress_percent === undefined ? null : Number(row.progress_percent),
     resolvedCommit: nullable("resolved_commit"), verificationSummary: nullable("verification_summary"), errorCode: nullable("error_code") as ErrorCode | null,
     errorMessage: nullable("error_message"), retryOfJobId: nullable("retry_of_job_id"), createdAt: text("created_at"), updatedAt: text("updated_at"),
     startedAt: nullable("started_at"), completedAt: nullable("completed_at")
   };
+}
+
+function inferLegacySource(sourceUrl: string): { namespace: string; repository: string } {
+  const parts = sourceUrl.replace(/^https:\/\/github\.com\//i, "").replace(/\.git$/i, "").split("/");
+  return { namespace: parts[0] ?? "unknown", repository: parts[1] ?? "unknown" };
+}
+
+function parseStoredSource(sourceUrl: string): { provider: GitProvider; namespace: string; repository: string } | null {
+  try {
+    const url = new URL(sourceUrl); const hosts: Record<string, GitProvider> = { "github.com": "github", "gitlab.com": "gitlab", "codeberg.org": "codeberg", "gitea.com": "gitea", "v15.next.forgejo.org": "forgejo" };
+    const provider = hosts[url.hostname.toLowerCase()]; const parts = url.pathname.split("/").filter(Boolean);
+    if (!provider || parts.length < 2) return null;
+    return { provider, namespace: parts.slice(0, -1).join("/"), repository: parts.at(-1)!.replace(/\.git$/i, "") };
+  } catch { return null; }
 }

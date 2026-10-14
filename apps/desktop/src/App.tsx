@@ -1,5 +1,6 @@
 import { useEffect, useState, type JSX } from "react";
 import type { AppSettings, AppStatus, FolderGrant, ThemePreference } from "@atlas-nexus/types";
+import { SUPPORTED_GIT_PROVIDERS } from "@atlas-nexus/validation";
 import { ErrorBoundary } from "./ErrorBoundary";
 import { icons } from "./icons";
 import { Dashboard } from "./pages/Dashboard";
@@ -68,7 +69,7 @@ export function App(): JSX.Element {
       <div className="sidebar-foot"><span className="status-dot" aria-hidden="true"/><span>Stage 2 · Explicit downloads</span></div>
     </aside>
     <div className="main-column">
-      <header className="topbar"><div><span className="eyebrow">Secure local source workspace</span><h1>{navigation.find(item => item.id === page)?.label}</h1></div><div className="privacy-pill">GitHub only · owner confirmed</div></header>
+      <header className="topbar"><div><span className="eyebrow">Secure local source workspace</span><h1>{navigation.find(item => item.id === page)?.label}</h1></div><div className="privacy-pill">{SUPPORTED_GIT_PROVIDERS.length} supported forges · public HTTPS only</div></header>
       {startupError && <div className="banner error" role="alert">{startupError}<button aria-label="Dismiss error" onClick={() => setStartupError(null)}>×</button></div>}
       <main id="main-content" tabIndex={-1}>{content}</main>
     </div>

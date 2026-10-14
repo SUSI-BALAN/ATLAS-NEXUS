@@ -23,7 +23,7 @@ describe("App navigation and honest states", () => {
   it("renders the empty dashboard without fabricated jobs", async () => {
     render(<App />);
     expect(await screen.findByText("0 completed")).toBeInTheDocument();
-    expect(screen.getByText("0 active · persisted SQLite data")).toBeInTheDocument();
+    expect(screen.getByText("0 active · 0 providers in persisted history")).toBeInTheDocument();
   });
   it("navigates to a clearly marked unimplemented page", async () => {
     render(<App />); await userEvent.click(screen.getByRole("button", { name: /AI Research/i }));
@@ -31,9 +31,9 @@ describe("App navigation and honest states", () => {
     expect(screen.getByText("Future stage")).toBeInTheDocument();
   });
   it("rejects an unsafe clone URL and keeps clone execution disabled", async () => {
-    render(<App />); await userEvent.click(screen.getByRole("button", { name: /Clone from URL/i }));
-    await userEvent.type(screen.getByLabelText("GitHub repository URL"), "file:///c:/private");
-    expect(await screen.findByText(/Only public GitHub HTTPS/)).toBeInTheDocument();
+    render(<App />); await userEvent.click(screen.getAllByRole("button", { name: /Clone from URL/i })[0]!);
+    await userEvent.type(screen.getByLabelText("Repository URL"), "file:///c:/private");
+    expect(await screen.findByText(/Only public HTTPS repository URLs/)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Start clone" })).toBeDisabled();
   });
 });

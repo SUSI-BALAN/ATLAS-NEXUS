@@ -26,6 +26,7 @@ describe("clone security policy", () => {
   });
 
   it.each([
+    ["remote: HTTP 429 Too Many Requests - rate limit exceeded", "download", "RATE_LIMITED"],
     ["remote: Repository not found.", "download", "REPOSITORY_UNAVAILABLE"],
     ["fatal: Authentication failed for 'https://github.com/private/repository'", "download", "PRIVATE_REPOSITORY"],
     ["fatal: could not read Username for 'https://github.com': terminal prompts disabled", "download", "REPOSITORY_UNAVAILABLE"],
