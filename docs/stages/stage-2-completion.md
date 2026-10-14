@@ -63,3 +63,11 @@ The remaining procedure is maintained in [Stage 2 owner acceptance](../testing/s
 ## Decision
 
 **PENDING NATIVE ACCEPTANCE.** G01–G05 pass with the evidence qualifications above. G06 retains real owner-session offline, ACL-denied, and disk-full/quota checks. Required native active cancellation, confirmed retry, restart persistence, production-mode cloning, and clean shutdown remain NOT RUN. Stage 3 must not begin until the owner accepts Stage 2 or explicitly authorizes work despite these documented gaps.
+
+## Stage 2.3 multi-forge extension — 2026-10-14
+
+The existing secure clone engine now accepts exactly five public HTTPS endpoints: GitHub, GitLab, Codeberg, Gitea.com, and `v15.next.forgejo.org`. A shared validator detects the provider, normalizes `.git`, preserves namespace provenance, supports GitLab nested groups, and rejects credentials, alternate ports, encoded paths, unsafe segments, extra non-GitLab path components, and every unapproved host or scheme. Redirects, inherited URL rewrites, credential acquisition, hooks, filters, LFS smudge, recursive submodules, and non-HTTPS transports remain disabled.
+
+Additive SQLite migration 4 adds provider, namespace, and repository-name fields and backfills legacy GitHub job records without recreating the database or deleting history. Clone Manager and Clone from URL display provider-aware identity; Dashboard derives provider counts from real persisted jobs. Stage 6 discovery/search adapters remain unimplemented.
+
+The routine suite after implementation reports 15 files passed, 2 gated files skipped, 97 tests passed, and 20 gated cases skipped. The separately enabled Stage 2.3 matrix reports 1 file and 15/15 live cases passed across all five providers and three modes. The managed-session production launch built successfully but exited before exposing a targetable window after profile/cache access errors (`0x5`) and a DPAPI decrypt error. No ACL, cache, sandbox, or credential-store workaround was attempted. Windows GUI validation for the four newly enabled providers therefore remains NOT RUN; automated live Git transport does not establish native rendering, interaction, persistence, cancellation, or production-mode acceptance.

@@ -52,7 +52,7 @@ Retries start a new controlled operation unless validated checkpoint semantics s
 
 ## Git modes and verification
 
-Initially accept canonical public GitHub HTTPS repository URLs only: exact host, owner/repository segments, optional .git suffix, no embedded credentials, ports, query, fragment, control characters, or encoded separators. Reject local/file/SSH/git/helper protocols. Provider-specific nested paths come later. Metadata and Git transport validation are separate; redirects and endpoint host changes require policy validation.
+Stage 2.3 accepts canonical public HTTPS repository URLs on exactly `github.com`, `gitlab.com`, `codeberg.org`, `gitea.com`, and `v15.next.forgejo.org`. GitLab supports validated nested namespace segments; the other providers require owner/repository paths. Optional `.git` is normalized. Embedded credentials, ports, query, fragment, control characters, encoded paths, local/file/SSH/git/helper protocols, redirects, and unapproved hosts are rejected. Repository cloning is provider-neutral transport work; Stage 6 search, discovery, health, and pagination adapters remain unimplemented.
 
 Snapshot records an exact resolved commit, source tree, manifest, and mode; it makes no history claim. Prefer controlled Git object acquisition and bounded tree materialization rather than introducing unsafe ZIP extraction. Full clone records accessible history under ordinary clone semantics, not hidden objects or every local tracking branch. Mirror produces a bare ref/object archive and no working tree. [Git clone documentation](https://git-scm.com/docs/git-clone) defines the differences.
 

@@ -4,7 +4,7 @@ Local-first repository cloning, source inspection, and optional research for Win
 
 ## Current status
 
-Stage 2 is implemented on the local `codex/stage2-secure-clone-engine` branch. Atlas Nexus now performs explicitly confirmed public GitHub HTTPS source snapshots, full working clones, and bare mirrors through an isolated main-process Git service. Clone jobs, resolved commits, phases, safe errors, cancellation, retry lineage, verification summaries, and interruption recovery are persisted in SQLite. Native owner acceptance is still pending; no installer or Android application is available yet.
+Stage 2.3 is implemented on the local `codex/stage2-secure-clone-engine` branch. Atlas Nexus now performs explicitly confirmed public HTTPS source snapshots, full working clones, and bare mirrors from GitHub, GitLab, Codeberg, Gitea.com, and the approved Forgejo Next test instance through one isolated main-process Git service. Clone jobs include provider and namespace provenance alongside resolved commits, phases, safe errors, cancellation, retry lineage, verification summaries, and interruption recovery in SQLite. Native owner acceptance is still pending; no installer or Android application is available yet.
 
 Stage 2.1 adds truthful unsuccessful-job progress, phase-aware safe errors, schema migration 3, hostile Git execution-isolation fixtures, active process cancellation coverage, reparse/collision tests, and resource fault coverage. See the [Stage 2 completion report](docs/stages/stage-2-completion.md) and [owner acceptance procedure](docs/testing/stage-2-owner-acceptance.md) for exact evidence and remaining native checks.
 
@@ -47,6 +47,14 @@ npm.cmd test -- --run apps/desktop/electron/cloneService.live.test.ts
 Remove-Item Env:ATLAS_NEXUS_LIVE_GITHUB
 ```
 
+The Stage 2.3 five-provider matrix is separately opt-in and exercises Snapshot, Full, and Mirror for each approved endpoint:
+
+```powershell
+$env:ATLAS_NEXUS_LIVE_FORGES = '1'
+npm.cmd test -- --run apps/desktop/electron/cloneService.multiForge.live.test.ts
+Remove-Item Env:ATLAS_NEXUS_LIVE_FORGES
+```
+
 After closing the development application and stopping its server with Ctrl+C, run `npm.cmd run build` followed by `npm.cmd start` to build and launch the production preview. This does not produce an installer. Owner-reported development and production GUI acceptance passed.
 
 Stage 1.4 uses an exact SHA-256 CSP allowance for Vite's React Refresh preamble only during development. Production has no preamble hash, localhost connection, or WebSocket exception. See the [Stage 1.4 CSP acceptance procedure](docs/stages/stage-1-4-csp-fix.md).
@@ -73,7 +81,7 @@ Nonfatal Chromium disk/GPU cache warnings, tooling `DEP0205`, and renderer bundl
 - Renderer Node integration is disabled; context isolation and renderer sandboxing are enabled.
 - The preload exposes only typed, allowlisted operations. Main-process handlers validate payloads and the calling frame.
 - Folder writes require an opaque grant from a native user selection, validate the real parent path, reject reparse points and dangerous Windows names, and create children exclusively without overwriting.
-- Stage 2 cloning supports public `https://github.com/owner/repository` URLs only. Git runs with shell interpolation disabled, isolated configuration, no credential helper or prompt, hooks disabled, HTTPS-only protocol, TLS verification, redirects disabled, LFS smudge disabled, and no recursive submodules.
+- Stage 2.3 cloning supports public HTTPS repository URLs only on the exact five allowlisted hosts. GitLab nested namespaces are supported; arbitrary self-hosted forges, credentials, SSH, URL rewrites, and redirects remain denied. Git runs with shell interpolation disabled, isolated configuration, no credential helper or prompt, hooks disabled, HTTPS-only protocol, TLS verification, LFS smudge disabled, and no recursive submodules.
 - Downloaded source is never executed and dependencies are never installed. Snapshots omit `.git`; full clones retain it; mirrors are bare. LFS pointer files and uninitialized submodules are reported rather than silently resolved.
 - Limits are one concurrent job, 15 minutes, 1 MB captured Git output, 50,000 files, and 2 GiB of materialized data. No automatic retry occurs after restart.
 - Atlas and GPT Researcher remain read-only references; no source was copied.
