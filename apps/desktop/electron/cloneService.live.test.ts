@@ -42,7 +42,7 @@ live("live public GitHub clone modes", () => {
     const folders = new FolderService(); const grant = await folders.grant(root); const service = new CloneService(database, folders);
     const initial = await service.start({ sourceUrl: "https://github.com/octocat/atlas-nexus-fixture-does-not-exist.git", mode: "snapshot", grantId: grant.id, childName: "missing" });
     const finished = await waitForTerminal(service, initial.id);
-    expect(finished).toMatchObject({ status: "Failed", errorCode: "NETWORK_ERROR" });
+    expect(finished).toMatchObject({ status: "Failed", progressPercent: null, errorCode: "REPOSITORY_UNAVAILABLE" });
     await expect(import("node:fs/promises").then(fs => fs.lstat(path.join(root, "missing")))).rejects.toMatchObject({ code: "ENOENT" });
     await database.close();
   }, 180_000);

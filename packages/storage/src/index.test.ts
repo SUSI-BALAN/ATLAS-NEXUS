@@ -11,7 +11,7 @@ describe("NexusDatabase", () => {
   it("migrates an empty database without fabricated repositories or jobs", async () => {
     const directory = await mkdtemp(path.join(tmpdir(), "nexus-db-")); directories.push(directory);
     const db = await NexusDatabase.open(path.join(directory, "nexus.sqlite"));
-    expect(db.schemaVersion()).toBe(2);
+    expect(db.schemaVersion()).toBe(3);
     expect(db.tableIsEmpty("repositories")).toBe(true);
     expect(db.tableIsEmpty("clone_jobs")).toBe(true);
     await db.close();
@@ -26,7 +26,7 @@ describe("NexusDatabase", () => {
     await db.updateCloneJob(queued.id, { status: "Downloading", phase: "Downloading", progressPercent: 25 });
     expect((await db.reconcileInterruptedCloneJobs())).toBe(1);
     const restored = db.getCloneJob(queued.id);
-    expect(restored).toMatchObject({ status: "Interrupted", phase: "Interrupted", progressPercent: 25, errorCode: "INTERNAL_ERROR" });
+    expect(restored).toMatchObject({ status: "Interrupted", phase: "Interrupted", progressPercent: null, errorCode: "INTERNAL_ERROR" });
     await db.close();
   });
 
@@ -36,6 +36,15 @@ describe("NexusDatabase", () => {
     const job = await db.createCloneJob({ id: "22222222-2222-4222-8222-222222222222", sourceUrl: "https://github.com/octocat/Hello-World.git", mode: "full", destinationPath: "D:\\Repos\\full" });
     await expect(db.updateCloneJob(job.id, { status: "Completed" })).rejects.toThrow("Illegal clone job transition");
     expect(db.getCloneJob(job.id)?.status).toBe("Queued");
+    await db.close();
+  });
+
+  it("normalizes terminal progress so only Completed can show 100 percent", async () => {
+    const directory = await mkdtemp(path.join(tmpdir(), "nexus-db-")); directories.push(directory);
+    const db = await NexusDatabase.open(path.join(directory, "nexus.sqlite"));
+    const job = await db.createCloneJob({ id: "33333333-3333-4333-8333-333333333333", sourceUrl: "https://github.com/octocat/Hello-World.git", mode: "snapshot", destinationPath: "D:\\Repos\\failed" });
+    await db.updateCloneJob(job.id, { status: "Validating" }); await db.updateCloneJob(job.id, { status: "Failed", progressPercent: 100 });
+    expect(db.getCloneJob(job.id)).toMatchObject({ status: "Failed", progressPercent: null });
     await db.close();
   });
 

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { CLONE_LIMITS, CloneServiceError, isolatedGitEnvironment, validateGitTree } from "./cloneService.js";
+import { CLONE_LIMITS, CloneServiceError, classifyGitFailure, isolatedGitEnvironment, mapCloneError, validateGitTree } from "./cloneService.js";
 
 describe("clone security policy", () => {
   it("isolates inherited Git configuration, credentials, and LFS smudge", () => {
@@ -23,5 +23,18 @@ describe("clone security policy", () => {
 
   it("defines bounded resources and disables automatic retries", () => {
     expect(CLONE_LIMITS).toMatchObject({ concurrentJobs: 1, durationMs: 900000, outputBytes: 1000000, files: 50000, automaticRetries: 0 });
+  });
+
+  it.each([
+    ["remote: Repository not found.", "download", "REPOSITORY_UNAVAILABLE"],
+    ["fatal: Authentication failed for 'https://github.com/private/repository'", "download", "PRIVATE_REPOSITORY"],
+    ["fatal: could not read Username for 'https://github.com': terminal prompts disabled", "download", "REPOSITORY_UNAVAILABLE"],
+    ["fatal: unable to access: Could not resolve host: github.com", "download", "TRANSPORT_ERROR"],
+    ["fatal: object file is corrupt", "verification", "VERIFICATION_FAILED"],
+    ["fatal: early EOF", "download", "NETWORK_ERROR"]
+  ] as const)("classifies safe Git failure %s", (output, operation, code) => expect(classifyGitFailure(output, operation).code).toBe(code));
+
+  it.each([["EEXIST", "PATH_COLLISION"], ["EACCES", "PERMISSION_DENIED"], ["ENOSPC", "RESOURCE_LIMIT"], ["EDQUOT", "RESOURCE_LIMIT"]] as const)("maps filesystem fault %s", (fsCode, expected) => {
+    expect(mapCloneError(Object.assign(new Error("synthetic"), { code: fsCode })).code).toBe(expected);
   });
 });

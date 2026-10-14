@@ -31,6 +31,13 @@ const migrations = [
       ALTER TABLE clone_jobs ADD COLUMN completed_at TEXT;
       CREATE INDEX IF NOT EXISTS clone_jobs_updated_at_idx ON clone_jobs(updated_at DESC);
     `
+  },
+  {
+    version: 3,
+    sql: `
+      UPDATE clone_jobs SET progress_percent = NULL WHERE status IN ('Partial','Failed','Cancelled','Interrupted');
+      UPDATE clone_jobs SET progress_percent = 100 WHERE status = 'Completed';
+    `
   }
 ] as const;
 
@@ -102,7 +109,9 @@ export class NexusDatabase {
       const current = this.getCloneJob(id);
       if (!current) throw new Error("Clone job was not found.");
       if (update.status && update.status !== current.status && !legalTransitions[current.status].includes(update.status)) throw new Error(`Illegal clone job transition: ${current.status} -> ${update.status}`);
-      const next = { ...current, ...update, updatedAt: new Date().toISOString() };
+      const nextStatus = update.status ?? current.status;
+      const normalizedUpdate = nextStatus === "Completed" ? { ...update, progressPercent: 100 } : ["Partial", "Failed", "Cancelled", "Interrupted"].includes(nextStatus) ? { ...update, progressPercent: null } : update;
+      const next = { ...current, ...normalizedUpdate, updatedAt: new Date().toISOString() };
       this.database.run(`UPDATE clone_jobs SET status=?, phase=?, progress_percent=?, resolved_commit=?, verification_summary=?, error_code=?, error_message=?, started_at=?, completed_at=?, updated_at=? WHERE id=?`,
         [next.status, next.phase, next.progressPercent, next.resolvedCommit, next.verificationSummary, next.errorCode, next.errorMessage, next.startedAt, next.completedAt, next.updatedAt, id]);
       await this.persist(); return this.getCloneJob(id)!;
@@ -128,7 +137,7 @@ export class NexusDatabase {
     if (count === 0) return 0;
     const now = new Date().toISOString();
     return this.serialize(async () => {
-      this.database.run(`UPDATE clone_jobs SET status='Interrupted', phase='Interrupted', error_code='INTERNAL_ERROR', error_message='The application closed before this job completed. Retry requires confirmation.', completed_at=?, updated_at=? WHERE status IN (${placeholders})`, [now, now, ...active]);
+      this.database.run(`UPDATE clone_jobs SET status='Interrupted', phase='Interrupted', progress_percent=NULL, error_code='INTERNAL_ERROR', error_message='The application closed before this job completed. Retry requires confirmation.', completed_at=?, updated_at=? WHERE status IN (${placeholders})`, [now, now, ...active]);
       await this.persist(); return count;
     });
   }

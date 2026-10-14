@@ -37,6 +37,8 @@ export class CloneServiceError extends Error {
   constructor(readonly code: ErrorCode, message: string) { super(message); this.name = "CloneServiceError"; }
 }
 
+type GitOperation = "download" | "verification";
+
 interface ActiveJob { controller: AbortController; process: ChildProcessWithoutNullStreams | null }
 
 export class CloneService {
@@ -53,7 +55,7 @@ export class CloneService {
       active.controller.abort(); if (active.process) terminateOwnedProcess(active.process);
       const current = this.database.getCloneJob(jobId);
       if (current && ["Queued", "Validating", "Downloading", "Verifying"].includes(current.status)) {
-        await this.database.updateCloneJob(jobId, { status: "Interrupted", phase: "Interrupted", errorCode: "INTERNAL_ERROR", errorMessage: "The application closed before this job completed.", completedAt: now });
+        await this.database.updateCloneJob(jobId, { status: "Interrupted", phase: "Interrupted", progressPercent: null, errorCode: "INTERNAL_ERROR", errorMessage: "The application closed before this job completed.", completedAt: now });
       }
     }));
     await this.queue;
@@ -83,7 +85,7 @@ export class CloneService {
     if (!active || !["Queued", "Validating", "Downloading", "Verifying"].includes(job.status)) throw new CloneServiceError("INVALID_INPUT", "Only an active clone job can be cancelled.");
     active.controller.abort();
     if (active.process) terminateOwnedProcess(active.process);
-    return this.database.updateCloneJob(jobId, { status: "Cancelled", phase: "Cancelled", errorCode: "CANCELLED", errorMessage: "Cancelled by the owner.", completedAt: new Date().toISOString() });
+    return this.database.updateCloneJob(jobId, { status: "Cancelled", phase: "Cancelled", progressPercent: null, errorCode: "CANCELLED", errorMessage: "Cancelled by the owner.", completedAt: new Date().toISOString() });
   }
 
   async retry(jobId: string, grantId: string, childName: string): Promise<CloneJob> {
@@ -119,7 +121,7 @@ export class CloneService {
       const cancelled = signal.aborted || (error instanceof CloneServiceError && error.code === "CANCELLED") || current?.status === "Cancelled";
       if (!cancelled) {
         const mapped = mapCloneError(error);
-        await this.database.updateCloneJob(jobId, { status: "Failed", phase: "Failed", errorCode: mapped.code, errorMessage: mapped.message, completedAt: new Date().toISOString() });
+        await this.database.updateCloneJob(jobId, { status: "Failed", phase: "Failed", progressPercent: null, errorCode: mapped.code, errorMessage: mapped.message, completedAt: new Date().toISOString() });
       }
     } finally {
       this.active.delete(jobId);
@@ -129,27 +131,27 @@ export class CloneService {
 
   private async download(jobId: string, mode: CloneMode, sourceUrl: string, payload: string, isolatedHome: string, signal: AbortSignal): Promise<string> {
     if (mode === "mirror") {
-      await this.git(jobId, ["clone", "--mirror", "--no-recurse-submodules", "--", sourceUrl, payload], isolatedHome, signal);
-      return (await this.git(jobId, ["-C", payload, "rev-parse", "HEAD"], isolatedHome, signal)).trim();
+      await this.git(jobId, ["clone", "--mirror", "--no-recurse-submodules", "--", sourceUrl, payload], isolatedHome, signal, "download");
+      return (await this.git(jobId, ["-C", payload, "rev-parse", "HEAD"], isolatedHome, signal, "verification")).trim();
     }
     const modeArgs = mode === "snapshot" ? ["--depth=1", "--single-branch", "--no-tags"] : [];
-    await this.git(jobId, ["clone", "--no-checkout", "--no-recurse-submodules", ...modeArgs, "--", sourceUrl, payload], isolatedHome, signal);
-    const commit = (await this.git(jobId, ["-C", payload, "rev-parse", "HEAD"], isolatedHome, signal)).trim();
-    const tree = await this.git(jobId, ["-C", payload, "ls-tree", "-rz", "--full-tree", commit], isolatedHome, signal);
+    await this.git(jobId, ["clone", "--no-checkout", "--no-recurse-submodules", ...modeArgs, "--", sourceUrl, payload], isolatedHome, signal, "download");
+    const commit = (await this.git(jobId, ["-C", payload, "rev-parse", "HEAD"], isolatedHome, signal, "verification")).trim();
+    const tree = await this.git(jobId, ["-C", payload, "ls-tree", "-rz", "--full-tree", commit], isolatedHome, signal, "verification");
     validateGitTree(tree);
-    await this.git(jobId, ["-C", payload, "checkout", "--force", "HEAD", "--", "."], isolatedHome, signal);
+    await this.git(jobId, ["-C", payload, "checkout", "--force", "HEAD", "--", "."], isolatedHome, signal, "verification");
     return commit;
   }
 
   private async verify(jobId: string, mode: CloneMode, payload: string, isolatedHome: string, signal: AbortSignal): Promise<string> {
     if (mode === "mirror") {
-      const bare = (await this.git(jobId, ["-C", payload, "rev-parse", "--is-bare-repository"], isolatedHome, signal)).trim();
+      const bare = (await this.git(jobId, ["-C", payload, "rev-parse", "--is-bare-repository"], isolatedHome, signal, "verification")).trim();
       if (bare !== "true") throw new CloneServiceError("VERIFICATION_FAILED", "The mirror did not produce a bare repository.");
-      await this.git(jobId, ["-C", payload, "fsck", "--full", "--no-progress"], isolatedHome, signal);
-      const refs = (await this.git(jobId, ["-C", payload, "for-each-ref", "--format=%(refname)"], isolatedHome, signal)).split(/\r?\n/).filter(Boolean).length;
+      await this.git(jobId, ["-C", payload, "fsck", "--full", "--no-progress"], isolatedHome, signal, "verification");
+      const refs = (await this.git(jobId, ["-C", payload, "for-each-ref", "--format=%(refname)"], isolatedHome, signal, "verification")).split(/\r?\n/).filter(Boolean).length;
       return `Bare mirror verified with ${refs} refs; external LFS assets and unreachable remote objects are not claimed.`;
     }
-    await this.git(jobId, ["-C", payload, "fsck", "--full", "--no-progress"], isolatedHome, signal);
+    await this.git(jobId, ["-C", payload, "fsck", "--full", "--no-progress"], isolatedHome, signal, "verification");
     const totals = await inspectPayload(payload, CLONE_LIMITS.files, CLONE_LIMITS.bytes);
     const lfsPointers = await countLfsPointers(payload, 256);
     if (mode === "snapshot") await rm(path.join(payload, ".git"), { recursive: true, force: false });
@@ -157,8 +159,8 @@ export class CloneService {
     return `${mode === "snapshot" ? "Source snapshot" : "Git working copy"} verified: ${totals.files} files, ${totals.bytes} bytes.${suffix} Submodules were not initialized.`;
   }
 
-  private async git(jobId: string, args: string[], isolatedHome: string, signal: AbortSignal): Promise<string> {
-    return runGit([...gitConfig, "-c", `core.hooksPath=${path.join(isolatedHome, "disabled-hooks")}`, ...args], isolatedGitEnvironment(isolatedHome), signal, process => {
+  private async git(jobId: string, args: string[], isolatedHome: string, signal: AbortSignal, operation: GitOperation): Promise<string> {
+    return runGit([...gitConfig, "-c", `core.hooksPath=${path.join(isolatedHome, "disabled-hooks")}`, ...args], isolatedGitEnvironment(isolatedHome), signal, operation, process => {
       const active = this.active.get(jobId); if (active) active.process = process;
     });
   }
@@ -183,7 +185,11 @@ export function validateGitTree(output: string): void {
   }
 }
 
-async function runGit(args: string[], env: NodeJS.ProcessEnv, signal: AbortSignal, onStart: (process: ChildProcessWithoutNullStreams) => void): Promise<string> {
+export async function runIsolatedGitForTest(args: string[], isolatedHome: string, operation: GitOperation = "verification", signal = new AbortController().signal): Promise<string> {
+  return runGit([...gitConfig, "-c", `core.hooksPath=${path.join(isolatedHome, "disabled-hooks")}`, ...args], isolatedGitEnvironment(isolatedHome), signal, operation, () => undefined);
+}
+
+async function runGit(args: string[], env: NodeJS.ProcessEnv, signal: AbortSignal, operation: GitOperation, onStart: (process: ChildProcessWithoutNullStreams) => void): Promise<string> {
   if (signal.aborted) throw new CloneServiceError("CANCELLED", "Cancelled by the owner.");
   return new Promise((resolve, reject) => {
     const child = spawn("git", args, { shell: false, windowsHide: true, env, stdio: "pipe" });
@@ -193,11 +199,20 @@ async function runGit(args: string[], env: NodeJS.ProcessEnv, signal: AbortSigna
     const append = (chunk: Buffer): void => { bytes += chunk.length; if (bytes > CLONE_LIMITS.outputBytes) { terminateOwnedProcess(child); finish(new CloneServiceError("RESOURCE_LIMIT", "Git exceeded the diagnostic output safety limit.")); return; } output += chunk.toString("utf8"); };
     child.stdout.on("data", append); child.stderr.on("data", append);
     child.on("error", () => finish(new CloneServiceError("CLONE_UNAVAILABLE", "Git could not be started.")));
-    child.on("close", code => { if (signal.aborted) finish(new CloneServiceError("CANCELLED", "Cancelled by the owner.")); else if (code !== 0) finish(new CloneServiceError("NETWORK_ERROR", "GitHub download or Git verification failed.")); else finish(); });
+    child.on("close", code => { if (signal.aborted) finish(new CloneServiceError("CANCELLED", "Cancelled by the owner.")); else if (code !== 0) finish(classifyGitFailure(output, operation)); else finish(); });
     const abort = (): void => { terminateOwnedProcess(child); finish(new CloneServiceError("CANCELLED", "Cancelled by the owner.")); };
     signal.addEventListener("abort", abort, { once: true });
     const timer = setTimeout(() => { terminateOwnedProcess(child); finish(new CloneServiceError("DOWNLOAD_TIMEOUT", "The clone exceeded the 15-minute safety limit.")); }, CLONE_LIMITS.durationMs);
   });
+}
+
+export function classifyGitFailure(output: string, operation: GitOperation): CloneServiceError {
+  const normalized = output.toLowerCase();
+  if (/authentication failed|permission denied/.test(normalized)) return new CloneServiceError("PRIVATE_REPOSITORY", "The repository requires credentials or access that Atlas Nexus does not use.");
+  if (/repository not found|not found|does not appear to be a git repository|could not read username|terminal prompts disabled/.test(normalized)) return new CloneServiceError("REPOSITORY_UNAVAILABLE", "The repository was not found, is private, or is unavailable.");
+  if (operation === "verification") return new CloneServiceError("VERIFICATION_FAILED", "The downloaded Git data could not be verified.");
+  if (/could not resolve host|failed to connect|connection (?:timed out|refused|reset)|ssl|tls|schannel|certificate|network is unreachable/.test(normalized)) return new CloneServiceError("TRANSPORT_ERROR", "GitHub could not be reached securely.");
+  return new CloneServiceError("NETWORK_ERROR", "The GitHub download failed before verification.");
 }
 
 function terminateOwnedProcess(child: ChildProcessWithoutNullStreams): void {
@@ -206,7 +221,7 @@ function terminateOwnedProcess(child: ChildProcessWithoutNullStreams): void {
   else child.kill("SIGTERM");
 }
 
-async function inspectPayload(root: string, maxFiles: number, maxBytes: number): Promise<{ files: number; bytes: number }> {
+export async function inspectPayload(root: string, maxFiles: number, maxBytes: number): Promise<{ files: number; bytes: number }> {
   const pending = [root]; let files = 0; let bytes = 0;
   while (pending.length) {
     const current = pending.pop()!; const directory = await opendir(current);
@@ -237,7 +252,7 @@ async function countLfsPointers(root: string, maximumReads: number): Promise<num
   return pointers;
 }
 
-async function cleanupOwnedStage(stageRoot: string, jobId: string): Promise<void> {
+export async function cleanupOwnedStage(stageRoot: string, jobId: string): Promise<void> {
   if (path.basename(stageRoot) !== `.atlas-nexus-stage-${jobId}`) return;
   try {
     const ledger = JSON.parse(await readFile(path.join(stageRoot, ".atlas-nexus-owner.json"), "utf8")) as { jobId?: string };
@@ -246,7 +261,7 @@ async function cleanupOwnedStage(stageRoot: string, jobId: string): Promise<void
   } catch { /* fail closed: retain unproven data */ }
 }
 
-function mapCloneError(error: unknown): CloneServiceError {
+export function mapCloneError(error: unknown): CloneServiceError {
   if (error instanceof CloneServiceError) return error;
   if (error instanceof FolderServiceError) return new CloneServiceError(error.code, error.message);
   const code = (error as NodeJS.ErrnoException).code;
