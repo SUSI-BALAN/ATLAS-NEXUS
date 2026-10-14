@@ -10,7 +10,7 @@ Record each result as PASS, FAIL, or NOT RUN with the application mode, source U
 2. Confirm the job visibly reaches Downloading. Select Cancel while it is active.
 3. Expected: status becomes Cancelled, the UI says it was not completed, no full/green 100% progress bar appears, no final destination exists, and unrelated sibling hashes remain unchanged.
 4. Select Review retry. Expected: no network operation starts yet.
-5. Select Confirm retry using a new unique child name if the previous name is unavailable.
+5. Review the selected parent and original child, then select Confirm retry. The current Clone Manager reuses that child name. If a foreign destination exists, it must reject the retry; use Clone from URL with a new child for a separate operation instead of replacing anything.
 6. Expected: the new job records `retryOfJobId`, reaches Completed only after verification, and the previous Cancelled record remains unchanged.
 
 ## B. History and interruption persistence
@@ -44,3 +44,22 @@ Only perform these with owner-approved disposable locations. Do not change ACLs 
 - Create the final child concurrently after preview but before publication. Expected: Path collision and preservation of the foreign child and its marker hash.
 
 Stop on any overwrite, unexpected code execution, credential prompt, security-control regression, or mismatch between status and filesystem result. Preserve the evidence and report Stage 2 NO-GO for investigation.
+
+## F. Stage 2.3 five-provider native matrix
+
+The automated Git transport matrix passes for the fixtures below. Native Snapshot/Full/Mirror downloads for this revision remain NOT RUN. On 2026-10-14 the development window rendered the new header and persisted counts, and detected GitLab from its URL. The picker opened and navigated to `D:\newl\ATLAS-NEXUS-OWNER\local-data\stage-2.3-native-20261014-2303`; automation could not reliably confirm selection. Cancel any remaining picker manually before continuing.
+
+| Provider | Verified public fixture | Native Snapshot | Native Full | Native Mirror |
+| --- | --- | --- | --- | --- |
+| GitHub | `https://github.com/octocat/Hello-World.git` | NOT RUN for Stage 2.3 revision | NOT RUN for Stage 2.3 revision | NOT RUN for Stage 2.3 revision |
+| GitLab | `https://gitlab.com/gitlab-org/gitlab-test.git` | NOT RUN | NOT RUN | NOT RUN |
+| Codeberg | `https://codeberg.org/ciphel/01Hello_World.git` | NOT RUN | NOT RUN | NOT RUN |
+| Gitea.com | `https://gitea.com/apachenpub/accept-test.git` | NOT RUN | NOT RUN | NOT RUN |
+| Forgejo Next | `https://v15.next.forgejo.org/kavemand/.forgejo.git` | NOT RUN | NOT RUN | NOT RUN |
+
+1. Select the fresh test parent through Browse. Do not save it over the owner's preferred folder unless desired. Use a unique child for every provider/mode, for example `gitlab-snapshot-20261014-2315`.
+2. Paste the fixture URL and verify provider, full namespace/name, mode, and exact destination. Confirm explicitly, then start one job at a time.
+3. Record final status, resolved commit and verification summary. Snapshot must contain source files and no `.git`; Full must retain `.git` with `git -C <destination> rev-parse --is-bare-repository` returning `false` and `--is-shallow-repository` returning `false`; Mirror must return bare `true` and `git -C <destination> config --get remote.origin.mirror` must return `true`.
+4. Retry the same child through Clone from URL to verify collision rejection and unchanged existing files. Never delete a successful clone to make a test pass.
+5. Close/relaunch normally and confirm all old and new job rows retain statuses and provenance. Close development mode and its server before starting production preview so two application instances do not write the same database.
+6. Run sections A–E and record outcomes. If Forgejo Next becomes unavailable, rate limited, or presents an anti-bot barrier, retain its safe error and mark the native case BLOCKED; do not bypass it.

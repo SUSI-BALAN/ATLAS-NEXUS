@@ -8,6 +8,8 @@ Stage 2.3 is implemented on the local `codex/stage2-secure-clone-engine` branch.
 
 Stage 2.1 adds truthful unsuccessful-job progress, phase-aware safe errors, schema migration 3, hostile Git execution-isolation fixtures, active process cancellation coverage, reparse/collision tests, and resource fault coverage. See the [Stage 2 completion report](docs/stages/stage-2-completion.md) and [owner acceptance procedure](docs/testing/stage-2-owner-acceptance.md) for exact evidence and remaining native checks.
 
+Stage 2.3 adds the exact five-provider validator, transactional migration 4, provider-aware UI/history, and independently checked live mode semantics. Final evidence is 120 routine tests and 20 separately enabled live tests passing; see the [Stage 2.3 implementation report](docs/stages/stage-2-3-implementation.md). Native acceptance remains pending.
+
 ## Requirements
 
 - Windows 11 for native desktop verification
