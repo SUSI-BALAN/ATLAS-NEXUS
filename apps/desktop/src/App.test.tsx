@@ -28,7 +28,7 @@ describe("App navigation and honest states", () => {
   it("navigates to a clearly marked unimplemented page", async () => {
     render(<App />); await userEvent.click(screen.getByRole("button", { name: /AI Research/i }));
     expect(screen.getByText("AI is disabled")).toBeInTheDocument();
-    expect(screen.getByText("Not implemented in Stage 1")).toBeInTheDocument();
+    expect(screen.getByText("Future stage")).toBeInTheDocument();
   });
   it("rejects an unsafe clone URL and keeps clone execution disabled", async () => {
     render(<App />); await userEvent.click(screen.getByRole("button", { name: /Clone from URL/i }));

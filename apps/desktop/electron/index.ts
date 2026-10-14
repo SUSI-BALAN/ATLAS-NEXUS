@@ -10,6 +10,7 @@ import { preloadPath } from "./runtimePaths.js";
 import { CloneService } from "./cloneService.js";
 
 let database: NexusDatabase | null = null;
+let cloneService: CloneService | null = null;
 const diagnostics = startStartupDiagnostics();
 diagnostics.record("module-loaded", { electron: process.versions.electron, chrome: process.versions.chrome, platform: process.platform });
 
@@ -31,7 +32,7 @@ async function createWindow(): Promise<void> {
   database = await NexusDatabase.open(databasePath);
   diagnostics.record("database-opened");
   const folderService = new FolderService();
-  const cloneService = new CloneService(database, folderService);
+  cloneService = new CloneService(database, folderService);
   await cloneService.initialize();
   const developmentUrl = !app.isPackaged ? process.env.ELECTRON_RENDERER_URL : undefined;
   registerIpc({ window, database, databasePath, folderService, cloneService, ...(developmentUrl ? { developmentUrl } : {}) });
@@ -55,5 +56,6 @@ app.on("before-quit", event => {
   diagnostics.record("before-quit");
   if (!database) return;
   event.preventDefault(); const current = database; database = null;
-  void current.close().finally(() => app.exit(0));
+  const currentCloneService = cloneService; cloneService = null;
+  void (currentCloneService?.shutdown() ?? Promise.resolve()).then(() => current.close()).finally(() => app.exit(0));
 });

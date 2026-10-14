@@ -47,6 +47,18 @@ export class CloneService {
 
   async initialize(): Promise<void> { await this.database.reconcileInterruptedCloneJobs(); }
 
+  async shutdown(): Promise<void> {
+    const now = new Date().toISOString();
+    await Promise.all([...this.active.entries()].map(async ([jobId, active]) => {
+      active.controller.abort(); if (active.process) terminateOwnedProcess(active.process);
+      const current = this.database.getCloneJob(jobId);
+      if (current && ["Queued", "Validating", "Downloading", "Verifying"].includes(current.status)) {
+        await this.database.updateCloneJob(jobId, { status: "Interrupted", phase: "Interrupted", errorCode: "INTERNAL_ERROR", errorMessage: "The application closed before this job completed.", completedAt: now });
+      }
+    }));
+    await this.queue;
+  }
+
   list(): CloneJob[] { return this.database.listCloneJobs(CLONE_LIMITS.retainedJobs); }
 
   get(jobId: string): CloneJob {
@@ -84,17 +96,17 @@ export class CloneService {
     let stageRoot: string | null = null;
     try {
       if (signal.aborted) throw new CloneServiceError("CANCELLED", "Cancelled by the owner.");
-      await this.database.updateCloneJob(jobId, { status: "Validating", phase: "Validating destination", startedAt: new Date().toISOString(), progressPercent: 0 });
+      await this.database.updateCloneJob(jobId, { status: "Validating", phase: "Validating destination", startedAt: new Date().toISOString(), progressPercent: null });
       await this.folders.revalidateCloneDestination(grantId, childName, parentPath, destinationPath);
       stageRoot = path.join(parentPath, `.atlas-nexus-stage-${jobId}`);
       await mkdir(stageRoot, { recursive: false });
       await writeFile(path.join(stageRoot, ".atlas-nexus-owner.json"), JSON.stringify({ jobId, version: 1 }), { flag: "wx" });
       const payload = path.join(stageRoot, "payload");
       const job = this.get(jobId);
-      await this.database.updateCloneJob(jobId, { status: "Downloading", phase: "Downloading", progressPercent: 5 });
+      await this.database.updateCloneJob(jobId, { status: "Downloading", phase: "Downloading", progressPercent: null });
       const commit = await this.download(jobId, job.mode, job.sourceUrl, payload, stageRoot, signal);
       if (signal.aborted) throw new CloneServiceError("CANCELLED", "Cancelled by the owner.");
-      await this.database.updateCloneJob(jobId, { status: "Verifying", phase: "Verifying", progressPercent: 85, resolvedCommit: commit });
+      await this.database.updateCloneJob(jobId, { status: "Verifying", phase: "Verifying", progressPercent: null, resolvedCommit: commit });
       const verification = await this.verify(jobId, job.mode, payload, stageRoot, signal);
       await this.folders.revalidateCloneDestination(grantId, childName, parentPath, destinationPath);
       await rename(payload, destinationPath);

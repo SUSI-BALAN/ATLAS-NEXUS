@@ -8,7 +8,7 @@ The owner's master prompt controls scope. Each stage needs a fresh branch/commit
 | --- | --- | --- | --- |
 | 0 | Workspace/reference audit, architecture, threat model, matrix, conventions, plan | Documentation foundation only | Documents independently reviewable; evidence and unknowns explicit |
 | 1 | Electron/React shell, Dashboard, Settings, Folder Manager, native picker/create, drive selection, SQLite, themes/errors | Implemented; automated checks pass; native GUI gate not verified in current session | Native launch/picker and non-overwriting folders; restricted IPC; persistence and checks |
-| 2 | Public GitHub HTTPS snapshot/full/mirror jobs; preview, destination, progress, cancel/retry, verification | Not implemented | Real public test repo, revision/integrity, collision races, cancellation, LFS/submodule honesty |
+| 2 | Public GitHub HTTPS snapshot/full/mirror jobs; preview, destination, progress, cancel/retry, verification | Implemented on feature branch; automated and live GitHub gates pass; native GUI/fault acceptance pending | Real public test repo, revision/integrity, collision races, cancellation, LFS/submodule honesty |
 | 3 | Vault, manifests/SHA-256, tree, history, search, storage, missing-folder and interrupted recovery | Not implemented | Restart durability, changed-file detection, bounded reading, no unrelated deletion |
 | 4 | Static language/framework/dependency/README/license/config/entry/security/readiness analysis | Not implemented | Known fixtures yield evidence-backed results; no execution or external-path access |
 | 5 | Disabled/Ollama/GPT Researcher/cloud modes, Q&A/history/reports/citations | Not implemented | Disabled works; configured local success; consent, citation and failure controls |

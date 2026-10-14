@@ -4,9 +4,9 @@ Local-first repository cloning, source inspection, and optional research for Win
 
 ## Current status
 
-Stage 1 was fully implemented and accepted on 2026-10-13. The owner reported successful Windows 11 development and production GUI acceptance, including native folder management, collision protection, Explorer opening, keyboard controls, themes, SQLite persistence, and clean shutdown. Repository clone execution deliberately remains disabled until Stage 2. No installer or Android application is available yet.
+Stage 2 is implemented on the local `codex/stage2-secure-clone-engine` branch. Atlas Nexus now performs explicitly confirmed public GitHub HTTPS source snapshots, full working clones, and bare mirrors through an isolated main-process Git service. Clone jobs, resolved commits, phases, safe errors, cancellation, retry lineage, verification summaries, and interruption recovery are persisted in SQLite. Native owner acceptance is still pending; no installer or Android application is available yet.
 
-Final acceptance passed strict typechecking, 48 tests across 12 files, production build, CommonJS preload verification, and the dependency audit. The CommonJS preload and development-only React Refresh CSP corrections are complete. See the [Stage 1 report](docs/stages/stage-1-completion.md) for evidence provenance and the [native recovery report](docs/stages/stage-1-native-recovery.md) for historical diagnostics.
+Stage 2 automated verification includes 55 routine tests and five separately gated live GitHub tests. The live fixture validates all three modes, cancellation with explicit retry, and an unavailable-repository failure. See the [Stage 2 completion report](docs/stages/stage-2-completion.md) for exact evidence and remaining native checks.
 
 ## Requirements
 
@@ -39,6 +39,14 @@ npm.cmd run verify:preload
 npm.cmd audit --json
 ```
 
+Live GitHub acceptance is opt-in and creates only disposable temporary fixtures:
+
+```powershell
+$env:ATLAS_NEXUS_LIVE_GITHUB = '1'
+npm.cmd test -- --run apps/desktop/electron/cloneService.live.test.ts
+Remove-Item Env:ATLAS_NEXUS_LIVE_GITHUB
+```
+
 After closing the development application and stopping its server with Ctrl+C, run `npm.cmd run build` followed by `npm.cmd start` to build and launch the production preview. This does not produce an installer. Owner-reported development and production GUI acceptance passed.
 
 Stage 1.4 uses an exact SHA-256 CSP allowance for Vite's React Refresh preamble only during development. Production has no preamble hash, localhost connection, or WebSocket exception. See the [Stage 1.4 CSP acceptance procedure](docs/stages/stage-1-4-csp-fix.md).
@@ -65,7 +73,9 @@ Nonfatal Chromium disk/GPU cache warnings, tooling `DEP0205`, and renderer bundl
 - Renderer Node integration is disabled; context isolation and renderer sandboxing are enabled.
 - The preload exposes only typed, allowlisted operations. Main-process handlers validate payloads and the calling frame.
 - Folder writes require an opaque grant from a native user selection, validate the real parent path, reject reparse points and dangerous Windows names, and create children exclusively without overwriting.
-- Repository cloning, website fetching, source execution, dependency installation, LFS, and submodules are not implemented in Stage 1.
+- Stage 2 cloning supports public `https://github.com/owner/repository` URLs only. Git runs with shell interpolation disabled, isolated configuration, no credential helper or prompt, hooks disabled, HTTPS-only protocol, TLS verification, redirects disabled, LFS smudge disabled, and no recursive submodules.
+- Downloaded source is never executed and dependencies are never installed. Snapshots omit `.git`; full clones retain it; mirrors are bare. LFS pointer files and uninitialized submodules are reported rather than silently resolved.
+- Limits are one concurrent job, 15 minutes, 1 MB captured Git output, 50,000 files, and 2 GiB of materialized data. No automatic retry occurs after restart.
 - Atlas and GPT Researcher remain read-only references; no source was copied.
 
 Read the [architecture](docs/architecture/overview.md), [threat model](docs/security/threat-model.md), [roadmap](docs/stages/roadmap.md), and [acceptance matrix](docs/testing/acceptance-matrix.md). The owner's stage controls remain in force: stop after each stage; no commit, push, deployment, or publication is implied.

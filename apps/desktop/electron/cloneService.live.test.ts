@@ -35,6 +35,17 @@ live("live public GitHub clone modes", () => {
     expect((await waitForTerminal(service, retried.id)).status).toBe("Completed");
     await database.close();
   }, 180_000);
+
+  it("records an unavailable public repository as a safe network failure", async () => {
+    const root = await mkdtemp(path.join(tmpdir(), "atlas-nexus-live-")); roots.push(root);
+    const database = await NexusDatabase.open(path.join(root, "jobs.sqlite"));
+    const folders = new FolderService(); const grant = await folders.grant(root); const service = new CloneService(database, folders);
+    const initial = await service.start({ sourceUrl: "https://github.com/octocat/atlas-nexus-fixture-does-not-exist.git", mode: "snapshot", grantId: grant.id, childName: "missing" });
+    const finished = await waitForTerminal(service, initial.id);
+    expect(finished).toMatchObject({ status: "Failed", errorCode: "NETWORK_ERROR" });
+    await expect(import("node:fs/promises").then(fs => fs.lstat(path.join(root, "missing")))).rejects.toMatchObject({ code: "ENOENT" });
+    await database.close();
+  }, 180_000);
 });
 
 async function waitForTerminal(service: CloneService, id: string): Promise<CloneJob> {
