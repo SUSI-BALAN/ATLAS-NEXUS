@@ -209,10 +209,12 @@ async function runGit(args: string[], env: NodeJS.ProcessEnv, signal: AbortSigna
 
 export function classifyGitFailure(output: string, operation: GitOperation): CloneServiceError {
   const normalized = output.toLowerCase();
-  if (/too many requests|rate limit(?:ed| exceeded)?|http (?:error )?429|the requested url returned error: 429/.test(normalized)) return new CloneServiceError("RATE_LIMITED", "The repository provider temporarily refused the request because its rate limit was reached.");
-  if (/authentication failed|permission denied/.test(normalized)) return new CloneServiceError("PRIVATE_REPOSITORY", "The repository requires credentials or access that Atlas Nexus does not use.");
-  if (/repository not found|not found|does not appear to be a git repository|could not read username|terminal prompts disabled/.test(normalized)) return new CloneServiceError("REPOSITORY_UNAVAILABLE", "The repository was not found, is private, or is unavailable.");
   if (operation === "verification") return new CloneServiceError("VERIFICATION_FAILED", "The downloaded Git data could not be verified.");
+  if (/too many requests|rate limit(?:ed| exceeded)?|http (?:error )?429|the requested url returned error: 429/.test(normalized)) return new CloneServiceError("RATE_LIMITED", "The repository provider temporarily refused the request because its rate limit was reached.");
+  if (/the requested url returned error: 5\d\d|service unavailable|bad gateway|gateway timeout|captcha|anti-bot/.test(normalized)) return new CloneServiceError("PROVIDER_UNAVAILABLE", "The repository provider is unavailable or restricting anonymous Git access. Retry later.");
+  if (/the requested url returned error: 403|remote:\s*(?:access denied|forbidden)/.test(normalized)) return new CloneServiceError("REPOSITORY_UNAVAILABLE", "The provider refused anonymous repository access. It may require authentication or restrict automated requests.");
+  if (/authentication failed|permission denied|the requested url returned error: 401/.test(normalized)) return new CloneServiceError("PRIVATE_REPOSITORY", "The repository requires credentials or access that Atlas Nexus does not use.");
+  if (/repository not found|not found|does not appear to be a git repository|could not read username|terminal prompts disabled/.test(normalized)) return new CloneServiceError("REPOSITORY_UNAVAILABLE", "The repository was not found, is private, or is unavailable.");
   if (/could not resolve host|failed to connect|connection (?:timed out|refused|reset)|ssl|tls|schannel|certificate|network is unreachable/.test(normalized)) return new CloneServiceError("TRANSPORT_ERROR", "The repository provider could not be reached securely.");
   return new CloneServiceError("NETWORK_ERROR", "The repository download failed before verification.");
 }

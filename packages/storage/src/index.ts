@@ -45,7 +45,6 @@ const migrations = [
       ALTER TABLE clone_jobs ADD COLUMN provider TEXT;
       ALTER TABLE clone_jobs ADD COLUMN namespace TEXT;
       ALTER TABLE clone_jobs ADD COLUMN repository_name TEXT;
-      UPDATE clone_jobs SET provider = 'github' WHERE provider IS NULL AND source_url LIKE 'https://github.com/%';
     `
   }
 ] as const;
@@ -68,7 +67,7 @@ export class NexusDatabase {
     }
     const instance = new NexusDatabase(bytes ? new SQL.Database(bytes) : new SQL.Database(), filePath);
     instance.database.run("PRAGMA foreign_keys = ON;");
-    await instance.migrate();
+    try { await instance.migrate(); } catch (error) { instance.database.close(); throw error; }
     return instance;
   }
 
@@ -81,11 +80,11 @@ export class NexusDatabase {
       this.database.run("BEGIN IMMEDIATE;");
       try {
         this.database.run(migration.sql);
+        if (migration.version === 4) this.backfillLegacyCloneSources();
         this.database.run("INSERT INTO schema_migrations(version, applied_at) VALUES (?, ?)", [migration.version, new Date().toISOString()]);
         this.database.run("COMMIT;");
       } catch (error) { this.database.run("ROLLBACK;"); throw error; }
     }
-    this.backfillLegacyCloneSources();
     await this.persist();
   }
 

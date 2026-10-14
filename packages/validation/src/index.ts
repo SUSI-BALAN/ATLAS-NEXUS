@@ -19,21 +19,27 @@ export const SUPPORTED_GIT_PROVIDERS: ReadonlyArray<{ id: GitProvider; label: st
 ]);
 
 export function parseGitRemoteUrl(input: string): GitUrlDetails {
-  if (input.length > 2048 || /[\u0000-\u001f\u007f]/.test(input)) throw new Error("Enter a valid supported HTTPS repository URL.");
+  if (input.length > 2048 || /[\u0000-\u0020\u007f\\%]/.test(input)) throw new Error("Enter a valid supported HTTPS repository URL without encoding, whitespace, or backslashes.");
+  // Inspect the original path before WHATWG URL normalization removes dot segments.
+  const raw = /^https:\/\/[^/?#]+(\/[^?#]*)$/i.exec(input);
+  if (!raw) throw new Error("Only public HTTPS repository URLs from the five approved providers are supported.");
+  const rawPath = raw[1]!.replace(/\/$/, "");
+  const parts = rawPath.slice(1).split("/");
+  const segment = /^[A-Za-z0-9_.-]+$/;
+  if (!parts.every(value => segment.test(value) && value !== "." && value !== ".." && value !== "-")) {
+    throw new Error("The repository namespace or name is invalid.");
+  }
   let url: URL;
   try { url = new URL(input); } catch { throw new Error("Enter a valid supported HTTPS repository URL."); }
   const provider = SUPPORTED_GIT_PROVIDERS.find(candidate => candidate.hostname === url.hostname.toLowerCase());
   if (url.protocol !== "https:" || !provider || url.port || url.username || url.password || url.search || url.hash) {
     throw new Error("Only public HTTPS repository URLs from the five approved providers are supported.");
   }
-  if (/%[0-9a-f]{2}/i.test(url.pathname)) throw new Error("Encoded repository paths are not allowed.");
-  const parts = url.pathname.split("/").filter(Boolean);
   if (parts.length < 2 || (!provider.nestedNamespaces && parts.length !== 2)) throw new Error(`Use a valid ${provider.label} repository URL.`);
   const rawRepository = parts.at(-1) ?? "";
   if (/\.git\.git$/i.test(rawRepository)) throw new Error("The repository suffix is invalid.");
   const repository = rawRepository.replace(/\.git$/i, "");
   const namespaceParts = parts.slice(0, -1);
-  const segment = /^[A-Za-z0-9_.-]+$/;
   if (![...namespaceParts, repository].every(value => segment.test(value) && value !== "." && value !== "..")) {
     throw new Error("The repository namespace or name is invalid.");
   }

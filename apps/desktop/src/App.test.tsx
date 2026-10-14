@@ -36,4 +36,15 @@ describe("App navigation and honest states", () => {
     expect(await screen.findByText(/Only public HTTPS repository URLs/)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Start clone" })).toBeDisabled();
   });
+
+  it.each([
+    ["https://github.com/a/b", "GitHub"], ["https://gitlab.com/a/subgroup/b", "GitLab"],
+    ["https://codeberg.org/a/b", "Codeberg"], ["https://gitea.com/a/b", "Gitea"],
+    ["https://v15.next.forgejo.org/a/b", "Forgejo Next"]
+  ])("shows the detected provider for %s without starting a job", async (url, label) => {
+    render(<App />); await userEvent.click(screen.getAllByRole("button", { name: /Clone from URL/i })[0]!);
+    await userEvent.type(screen.getByLabelText("Repository URL"), url);
+    expect(screen.getByText(`Valid public ${label} HTTPS URL`)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Start clone" })).toBeDisabled();
+  });
 });

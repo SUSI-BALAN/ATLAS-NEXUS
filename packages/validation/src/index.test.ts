@@ -24,4 +24,11 @@ describe("parseGitRemoteUrl", () => {
   });
 
   it.each(["http://github.com/a/b", "git@github.com:a/b.git", "https://user:pass@github.com/a/b", "file:///c:/repo", "https://github.com/a/b/issues", "https://github.com/a%2fb/c", "https://github.com/a/%2e%2e", "https://github.com:444/a/b", "https://github.example/a/b", "https://forgejo.org/a/b", "https://codeberg.org/a/b/c", "https://github.com/a/b?download=1", "https://github.com/a/b.git.git"])("rejects %s", input => expect(() => parseGitRemoteUrl(input)).toThrow());
+
+  it.each([
+    "https://github.com/a/../owner/repo", "https://github.com/a/%2e%2e/owner/repo",
+    "https://github.com/owner/./repo", "https://github.com/owner\\repo", "https://%67ithub.com/owner/repo",
+    "https://gitlab.com/group//subgroup/repo", "https://gitlab.com/group/repo/-/tree/main",
+    "https://github.com/owner/repo?", "https://github.com/owner/repo#", " https://github.com/owner/repo"
+  ])("rejects ambiguous original URL %s before normalization", input => expect(() => parseGitRemoteUrl(input)).toThrow());
 });
