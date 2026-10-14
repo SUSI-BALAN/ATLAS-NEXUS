@@ -11,9 +11,31 @@ describe("NexusDatabase", () => {
   it("migrates an empty database without fabricated repositories or jobs", async () => {
     const directory = await mkdtemp(path.join(tmpdir(), "nexus-db-")); directories.push(directory);
     const db = await NexusDatabase.open(path.join(directory, "nexus.sqlite"));
-    expect(db.schemaVersion()).toBe(1);
+    expect(db.schemaVersion()).toBe(2);
     expect(db.tableIsEmpty("repositories")).toBe(true);
     expect(db.tableIsEmpty("clone_jobs")).toBe(true);
+    await db.close();
+  });
+
+  it("persists clone lifecycle metadata and reconciles interrupted work", async () => {
+    const directory = await mkdtemp(path.join(tmpdir(), "nexus-db-")); directories.push(directory);
+    const db = await NexusDatabase.open(path.join(directory, "nexus.sqlite"));
+    const queued = await db.createCloneJob({ id: "11111111-1111-4111-8111-111111111111", sourceUrl: "https://github.com/octocat/Hello-World.git", mode: "snapshot", destinationPath: "D:\\Repos\\Hello-World" });
+    expect(queued.status).toBe("Queued");
+    await db.updateCloneJob(queued.id, { status: "Validating", phase: "Validating", startedAt: "2026-10-14T00:00:00.000Z" });
+    await db.updateCloneJob(queued.id, { status: "Downloading", phase: "Downloading", progressPercent: 25 });
+    expect((await db.reconcileInterruptedCloneJobs())).toBe(1);
+    const restored = db.getCloneJob(queued.id);
+    expect(restored).toMatchObject({ status: "Interrupted", phase: "Interrupted", progressPercent: 25, errorCode: "INTERNAL_ERROR" });
+    await db.close();
+  });
+
+  it("rejects illegal clone state transitions", async () => {
+    const directory = await mkdtemp(path.join(tmpdir(), "nexus-db-")); directories.push(directory);
+    const db = await NexusDatabase.open(path.join(directory, "nexus.sqlite"));
+    const job = await db.createCloneJob({ id: "22222222-2222-4222-8222-222222222222", sourceUrl: "https://github.com/octocat/Hello-World.git", mode: "full", destinationPath: "D:\\Repos\\full" });
+    await expect(db.updateCloneJob(job.id, { status: "Completed" })).rejects.toThrow("Illegal clone job transition");
+    expect(db.getCloneJob(job.id)?.status).toBe("Queued");
     await db.close();
   });
 

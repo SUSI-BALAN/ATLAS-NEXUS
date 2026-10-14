@@ -37,6 +37,14 @@ describe("FolderService", () => {
     const preview = await service.preview(grant.id, "existing");
     expect(preview).toMatchObject({ exists: true, valid: false });
   });
+
+  it("fails closed when another process creates the destination after preview", async () => {
+    const parent = await mkdtemp(path.join(tmpdir(), "nexus-folder-")); directories.push(parent);
+    const service = new FolderService(); const grant = await service.grant(parent);
+    const preview = await service.preview(grant.id, "race-target");
+    await mkdir(preview.destinationPath);
+    await expect(service.revalidateCloneDestination(grant.id, "race-target", preview.parentPath, preview.destinationPath)).rejects.toMatchObject({ code: "PATH_COLLISION" });
+  });
 });
 
 async function fsRealPath(value: string): Promise<string> { return (await import("node:fs/promises")).realpath(value); }

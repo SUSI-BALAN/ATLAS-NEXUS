@@ -7,6 +7,7 @@ import { secureWindowOptions } from "./windowPolicy.js";
 import { startStartupDiagnostics } from "./startupDiagnostics.js";
 import { installContentSecurityPolicy } from "./contentSecurityPolicy.js";
 import { preloadPath } from "./runtimePaths.js";
+import { CloneService } from "./cloneService.js";
 
 let database: NexusDatabase | null = null;
 const diagnostics = startStartupDiagnostics();
@@ -29,8 +30,11 @@ async function createWindow(): Promise<void> {
   diagnostics.record("database-opening");
   database = await NexusDatabase.open(databasePath);
   diagnostics.record("database-opened");
+  const folderService = new FolderService();
+  const cloneService = new CloneService(database, folderService);
+  await cloneService.initialize();
   const developmentUrl = !app.isPackaged ? process.env.ELECTRON_RENDERER_URL : undefined;
-  registerIpc({ window, database, databasePath, folderService: new FolderService(), ...(developmentUrl ? { developmentUrl } : {}) });
+  registerIpc({ window, database, databasePath, folderService, cloneService, ...(developmentUrl ? { developmentUrl } : {}) });
   if (developmentUrl) await window.loadURL(developmentUrl); else await window.loadFile(join(import.meta.dirname, "../renderer/index.html"));
   diagnostics.record("renderer-loaded");
 }
