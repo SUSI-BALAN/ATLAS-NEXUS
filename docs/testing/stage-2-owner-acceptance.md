@@ -47,15 +47,15 @@ Stop on any overwrite, unexpected code execution, credential prompt, security-co
 
 ## F. Stage 2.3 five-provider native matrix
 
-The automated Git transport matrix passes for the fixtures below. Native Snapshot/Full/Mirror downloads for this revision remain NOT RUN. On 2026-10-14 the development window rendered the new header and persisted counts, and detected GitLab from its URL. The picker opened and navigated to `D:\newl\ATLAS-NEXUS-OWNER\local-data\stage-2.3-native-20261014-2303`; automation could not reliably confirm selection. Cancel any remaining picker manually before continuing.
+The automated Git transport matrix passes for the fixtures below. Read-only owner-profile reconciliation independently verifies 13/15 provider/mode combinations; GitLab Full and Gitea.com Snapshot remain missing from the owner profile, although exact isolated `CloneService` live checks now pass for both. GUI acceptance for those two modes and all lifecycle rows remains NOT RUN.
 
 | Provider | Verified public fixture | Native Snapshot | Native Full | Native Mirror |
 | --- | --- | --- | --- | --- |
-| GitHub | `https://github.com/octocat/Hello-World.git` | NOT RUN for Stage 2.3 revision | NOT RUN for Stage 2.3 revision | NOT RUN for Stage 2.3 revision |
-| GitLab | `https://gitlab.com/gitlab-org/gitlab-test.git` | NOT RUN | NOT RUN | NOT RUN |
-| Codeberg | `https://codeberg.org/ciphel/01Hello_World.git` | NOT RUN | NOT RUN | NOT RUN |
-| Gitea.com | `https://gitea.com/apachenpub/accept-test.git` | NOT RUN | NOT RUN | NOT RUN |
-| Forgejo Next | `https://v15.next.forgejo.org/kavemand/.forgejo.git` | NOT RUN | NOT RUN | NOT RUN |
+| GitHub | Existing reconciled sources | OWNER ARTIFACT PASS | OWNER ARTIFACT PASS | OWNER ARTIFACT PASS |
+| GitLab | `https://gitlab.com/antora/antora-collector.git` | OWNER ARTIFACT PASS | AUTOMATED PASS; GUI NOT RUN | OWNER ARTIFACT PASS (separate source) |
+| Codeberg | Existing reconciled sources | OWNER ARTIFACT PASS | OWNER ARTIFACT PASS | OWNER ARTIFACT PASS |
+| Gitea.com | `https://gitea.com/SnapperGee/climax-prompt-python.git` | AUTOMATED PASS; GUI NOT RUN | OWNER ARTIFACT PASS | OWNER ARTIFACT PASS |
+| Forgejo Next | Existing reconciled sources | OWNER ARTIFACT PASS | OWNER ARTIFACT PASS | OWNER ARTIFACT PASS |
 
 1. Select the fresh test parent through Browse. Do not save it over the owner's preferred folder unless desired. Use a unique child for every provider/mode, for example `gitlab-snapshot-20261014-2315`.
 2. Paste the fixture URL and verify provider, full namespace/name, mode, and exact destination. Confirm explicitly, then start one job at a time.

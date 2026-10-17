@@ -85,7 +85,7 @@ Nonfatal Chromium disk/GPU cache warnings, tooling `DEP0205`, and renderer bundl
 - Folder writes require an opaque grant from a native user selection, validate the real parent path, reject reparse points and dangerous Windows names, and create children exclusively without overwriting.
 - Stage 2.3 cloning supports public HTTPS repository URLs only on the exact five allowlisted hosts. GitLab nested namespaces are supported; arbitrary self-hosted forges, credentials, SSH, URL rewrites, and redirects remain denied. Git runs with shell interpolation disabled, isolated configuration, no credential helper or prompt, hooks disabled, HTTPS-only protocol, TLS verification, LFS smudge disabled, and no recursive submodules.
 - Downloaded source is never executed and dependencies are never installed. Snapshots omit `.git`; full clones retain it; mirrors are bare. LFS pointer files and uninitialized submodules are reported rather than silently resolved.
-- Limits are one concurrent job, 15 minutes, 1 MB captured Git output, 50,000 files, and 2 GiB of materialized data. No automatic retry occurs after restart.
+- Limits are one concurrent job, 15 minutes, 1 MB captured Git diagnostics, 16 MiB bounded structured Git stdout, 50,000 files, and 2 GiB of materialized data. No automatic retry occurs after restart.
 - Atlas and GPT Researcher remain read-only references; no source was copied.
 
 Read the [architecture](docs/architecture/overview.md), [threat model](docs/security/threat-model.md), [roadmap](docs/stages/roadmap.md), and [acceptance matrix](docs/testing/acceptance-matrix.md). The owner's stage controls remain in force: stop after each stage; no commit, push, deployment, or publication is implied.
