@@ -2,6 +2,8 @@
 
 Decision: **PENDING NATIVE ACCEPTANCE**. Automated and live Git acceptance pass. Required native clone, lifecycle, and real Windows fault checks remain open.
 
+Evidence update (2026-10-17): the owner profile now contains independently correlated Completed artifacts for 13 of 15 provider/mode combinations. GitLab Full and Gitea.com Snapshot remain missing. Native lifecycle and production acceptance remain pending. See [the evidence reconciliation](../testing/stage-2-3-evidence-reconciliation-2026-10-17.md) for exact job IDs, destinations, commits, timestamps, verification results, and the qualified failed GitLab Mirror record.
+
 ## Workspace and commits
 
 - Workspace: `D:\newl\ATLAS-NEXUS-OWNER`

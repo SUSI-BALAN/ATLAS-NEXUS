@@ -59,3 +59,7 @@ PASS = observed successful verification. FAIL = attempted check failed. WARNING 
 | L04 / 9 | Release docs, reproducibility, licenses, known limitations complete | Fresh build, dependency/security review, explicit publication boundary | NOT RUN |
 
 Tests may use temporary app-owned fixtures, but must never execute code from a cloned project. Mocks establish application handling, not real OS permission/disk/UI behavior. Keep mocked fault tests and real platform checks distinguishable.
+
+## Stage 2.3 owner-evidence update — 2026-10-17
+
+G01 is currently **WARNING / partial native evidence**: automated/live coverage remains 15/15, while read-only owner-profile and filesystem reconciliation independently verifies Completed artifacts for 13/15 provider/mode combinations. GitLab Full and Gitea.com Snapshot remain missing. The Codeberg and Forgejo Next Snapshot trees match 4/4 and 94/94 provider blob IDs respectively. Lifecycle, production, permission-denied, and disk/quota native checks remain pending. See [the exact matrix](stage-2-3-evidence-reconciliation-2026-10-17.md).

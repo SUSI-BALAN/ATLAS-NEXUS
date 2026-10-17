@@ -3,7 +3,7 @@ import { chmod, lstat, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/p
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { cleanupOwnedStage, CloneServiceError, inspectPayload, runIsolatedGitForTest } from "./cloneService.js";
+import { cleanupOwnedStage, CloneService, CloneServiceError, inspectPayload, runIsolatedGitForTest } from "./cloneService.js";
 
 const roots: string[] = [];
 afterEach(async () => { for (const root of roots.splice(0)) await rm(root, { recursive: true, force: true }); });
@@ -62,6 +62,19 @@ describe("G04-G06 owned cleanup and resource faults", () => {
     await writeFile(path.join(root, "one"), "1234"); await writeFile(path.join(root, "two"), "5678");
     await expect(inspectPayload(root, 1, 100)).rejects.toMatchObject({ code: "RESOURCE_LIMIT" });
     await expect(inspectPayload(root, 10, 7)).rejects.toMatchObject({ code: "RESOURCE_LIMIT" });
+  });
+
+  it("reports snapshot totals for the final published tree after Git metadata removal", async () => {
+    const root = await mkdtemp(path.join(tmpdir(), "nexus-snapshot-totals-")); roots.push(root);
+    await mkdir(path.join(root, ".git"));
+    await writeFile(path.join(root, ".git", "temporary-object"), "temporary metadata");
+    await writeFile(path.join(root, "source.txt"), "published source");
+    const service = new CloneService(null as never, null as never);
+    (service as unknown as { git: () => Promise<string> }).git = async () => "";
+    const summary = await (service as unknown as { verify: (jobId: string, mode: "snapshot", payload: string, isolatedHome: string, signal: AbortSignal) => Promise<string> })
+      .verify("job", "snapshot", root, root, new AbortController().signal);
+    expect(summary).toContain("Source snapshot verified: 1 files, 16 bytes.");
+    await expect(lstat(path.join(root, ".git"))).rejects.toMatchObject({ code: "ENOENT" });
   });
 
   it("deletes only a stage whose exact ledger proves ownership", async () => {

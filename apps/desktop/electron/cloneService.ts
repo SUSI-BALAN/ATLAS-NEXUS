@@ -153,9 +153,9 @@ export class CloneService {
       return `Bare mirror verified with ${refs} refs; external LFS assets and unreachable remote objects are not claimed.`;
     }
     await this.git(jobId, ["-C", payload, "fsck", "--full", "--no-progress"], isolatedHome, signal, "verification");
-    const totals = await inspectPayload(payload, CLONE_LIMITS.files, CLONE_LIMITS.bytes);
     const lfsPointers = await countLfsPointers(payload, 256);
     if (mode === "snapshot") await rm(path.join(payload, ".git"), { recursive: true, force: false });
+    const totals = await inspectPayload(payload, CLONE_LIMITS.files, CLONE_LIMITS.bytes);
     const suffix = lfsPointers > 0 ? ` ${lfsPointers} possible LFS pointer file(s) remain unresolved.` : " No LFS pointer files were detected in the bounded scan.";
     return `${mode === "snapshot" ? "Source snapshot" : "Git working copy"} verified: ${totals.files} files, ${totals.bytes} bytes.${suffix} Submodules were not initialized.`;
   }
