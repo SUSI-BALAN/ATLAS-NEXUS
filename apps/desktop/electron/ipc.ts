@@ -1,17 +1,18 @@
 import { randomUUID } from "node:crypto";
 import type { BrowserWindow, IpcMainInvokeEvent } from "electron";
 import { dialog, ipcMain, shell } from "electron";
-import { IPC_CHANNELS, type AppStatus, type ErrorCode, type Result } from "@atlas-nexus/types";
-import { childNameInputSchema, grantInputSchema, openFolderInputSchema, settingsUpdateSchema } from "@atlas-nexus/validation";
+import { IPC_CHANNELS, type AppStatus, type CloneJobStatus, type ErrorCode, type Result } from "@atlas-nexus/types";
+import { childNameInputSchema, cloneJobInputSchema, cloneRetrySchema, cloneStartSchema, grantInputSchema, openFolderInputSchema, settingsUpdateSchema } from "@atlas-nexus/validation";
 import type { NexusDatabase } from "@atlas-nexus/storage";
 import { FolderService, FolderServiceError } from "./folderService.js";
 import { isTrustedIpcSender } from "./senderPolicy.js";
+import { CloneService, CloneServiceError } from "./cloneService.js";
 
 function success<T>(data: T, requestId: string): Result<T> { return { ok: true, data, requestId }; }
 function failure<T>(code: ErrorCode, message: string, requestId: string): Result<T> { return { ok: false, error: { code, message, requestId } }; }
 
-export function registerIpc(options: { window: BrowserWindow; database: NexusDatabase; databasePath: string; folderService: FolderService; developmentUrl?: string }): void {
-  const { window, database, databasePath, folderService, developmentUrl } = options;
+export function registerIpc(options: { window: BrowserWindow; database: NexusDatabase; databasePath: string; folderService: FolderService; cloneService: CloneService; developmentUrl?: string }): void {
+  const { window, database, databasePath, folderService, cloneService, developmentUrl } = options;
   const register = <T>(channel: string, handler: (event: IpcMainInvokeEvent, input: unknown, requestId: string) => Promise<Result<T>>) => {
     ipcMain.removeHandler(channel);
     ipcMain.handle(channel, async (event, input) => {
@@ -19,6 +20,7 @@ export function registerIpc(options: { window: BrowserWindow; database: NexusDat
       if (!isTrustedIpcSender(event, window.webContents.id, developmentUrl)) return failure("INVALID_INPUT", "The request did not come from the application window.", requestId);
       try { return await handler(event, input, requestId); } catch (error) {
         if (error instanceof FolderServiceError) return failure(error.code, error.message, requestId);
+        if (error instanceof CloneServiceError) return failure(error.code, error.message, requestId);
         if ((error as { name?: string }).name === "ZodError") return failure("INVALID_INPUT", "The request format is invalid.", requestId);
         console.error("Atlas Nexus IPC operation failed", { requestId, channel, errorName: (error as Error).name });
         return failure("INTERNAL_ERROR", "The operation could not be completed.", requestId);
@@ -26,7 +28,7 @@ export function registerIpc(options: { window: BrowserWindow; database: NexusDat
     });
   };
 
-  register<AppStatus>(IPC_CHANNELS.appStatus, async (_event, _input, requestId) => success({ version: "0.1.0", platform: process.platform, databaseReady: true, databasePath, cloneEngineAvailable: false }, requestId));
+  register<AppStatus>(IPC_CHANNELS.appStatus, async (_event, _input, requestId) => success({ version: "0.1.0", platform: process.platform, databaseReady: true, databasePath, cloneEngineAvailable: true }, requestId));
   register(IPC_CHANNELS.settingsGet, async (_event, _input, requestId) => success(database.getSettings(), requestId));
   register(IPC_CHANNELS.settingsUpdate, async (_event, input, requestId) => {
     const parsed = settingsUpdateSchema.parse(input);
@@ -52,4 +54,13 @@ export function registerIpc(options: { window: BrowserWindow; database: NexusDat
     const shellError = await shell.openPath(target); if (shellError) return failure("PATH_UNAVAILABLE", "Windows Explorer could not open the folder.", requestId);
     return success(null, requestId);
   });
+  register(IPC_CHANNELS.cloneStart, async (_event, input, requestId) => { const parsed = cloneStartSchema.parse(input); return success(await cloneService.start({ sourceUrl: parsed.sourceUrl, mode: parsed.mode, grantId: parsed.grantId, childName: parsed.childName, ...(parsed.retryOfJobId ? { retryOfJobId: parsed.retryOfJobId } : {}) }), requestId); });
+  register(IPC_CHANNELS.cloneList, async (_event, _input, requestId) => {
+    const jobs = cloneService.list();
+    const statuses: CloneJobStatus[] = ["Queued", "Validating", "Downloading", "Verifying", "Completed", "Partial", "Failed", "Cancelled", "Interrupted"];
+    const counts = Object.fromEntries(statuses.map(status => [status, jobs.filter(job => job.status === status).length])) as Record<CloneJobStatus, number>;
+    return success({ jobs, counts }, requestId);
+  });
+  register(IPC_CHANNELS.cloneCancel, async (_event, input, requestId) => { const parsed = cloneJobInputSchema.parse(input); return success(await cloneService.cancel(parsed.jobId), requestId); });
+  register(IPC_CHANNELS.cloneRetry, async (_event, input, requestId) => { const parsed = cloneRetrySchema.parse(input); return success(await cloneService.retry(parsed.jobId, parsed.grantId, parsed.childName), requestId); });
 }

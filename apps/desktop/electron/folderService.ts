@@ -45,6 +45,21 @@ export class FolderService {
     return target;
   }
 
+  async resolveCloneDestination(grantId: string, childName: string): Promise<{ parentPath: string; destinationPath: string }> {
+    const parentPath = await this.resolveGrant(grantId);
+    const destinationPath = this.child(parentPath, childName);
+    try { await lstat(destinationPath); throw new FolderServiceError("PATH_COLLISION", "A file or folder already exists at this destination."); }
+    catch (error) { if (error instanceof FolderServiceError) throw error; if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw this.mapFsError(error); }
+    return { parentPath, destinationPath };
+  }
+
+  async revalidateCloneDestination(grantId: string, childName: string, expectedParent: string, expectedDestination: string): Promise<void> {
+    const resolved = await this.resolveCloneDestination(grantId, childName);
+    if (resolved.parentPath.toLowerCase() !== expectedParent.toLowerCase() || resolved.destinationPath.toLowerCase() !== expectedDestination.toLowerCase()) {
+      throw new FolderServiceError("UNSUPPORTED_PATH", "The approved destination changed before publication.");
+    }
+  }
+
   private async resolveGrant(grantId: string): Promise<string> {
     const granted = this.grants.get(grantId);
     if (!granted) throw new FolderServiceError("GRANT_NOT_FOUND", "Select the parent folder again.");

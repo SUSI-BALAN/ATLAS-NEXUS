@@ -1,5 +1,6 @@
 import { useEffect, useState, type JSX } from "react";
 import type { AppSettings, AppStatus, FolderGrant, ThemePreference } from "@atlas-nexus/types";
+import { SUPPORTED_GIT_PROVIDERS } from "@atlas-nexus/validation";
 import { ErrorBoundary } from "./ErrorBoundary";
 import { icons } from "./icons";
 import { Dashboard } from "./pages/Dashboard";
@@ -7,6 +8,7 @@ import { ClonePage } from "./pages/ClonePage";
 import { FolderManager } from "./pages/FolderManager";
 import { PlaceholderPage } from "./pages/PlaceholderPage";
 import { SettingsPage } from "./pages/SettingsPage";
+import { CloneManager } from "./pages/CloneManager";
 
 export type PageId = "dashboard" | "clone" | "folders" | "vault" | "manager" | "inspector" | "ai" | "settings";
 const navigation: { id: PageId; label: string; caption: string }[] = [
@@ -49,10 +51,10 @@ export function App(): JSX.Element {
     if (page === "dashboard") return <Dashboard status={status} folder={folder} navigate={setPage} />;
     if (page === "clone") return <ClonePage folder={folder} setFolder={setFolder} navigate={setPage} />;
     if (page === "folders") return <FolderManager folder={folder} setFolder={setFolder} />;
+    if (page === "manager") return <CloneManager folder={folder} />;
     if (page === "settings") return <SettingsPage settings={settings} status={status} saveTheme={saveTheme} />;
     const definitions = {
       vault: ["My Vault", "Your repository library is empty", "Vault records and file manifests will be implemented in Stage 3."],
-      manager: ["Clone Manager", "No clone operations", "The Git clone engine and durable job controls will be implemented in Stage 2."],
       inspector: ["Source Inspector", "Source analysis is not implemented", "Evidence-backed static inspection arrives in Stage 4. Atlas Nexus will not execute repository code."],
       ai: ["AI Research", "AI is disabled", "Optional local and cloud research modes arrive in Stage 5. Cloning will never depend on AI."]
     } as const;
@@ -64,10 +66,10 @@ export function App(): JSX.Element {
     <aside className="sidebar">
       <div className="brand"><div className="brand-mark">AN</div><div><strong>Atlas Nexus</strong><span>Local workspace</span></div></div>
       <nav aria-label="Primary navigation">{navigation.map(item => { const Icon = icons[item.id]!; return <button key={item.id} aria-current={page === item.id ? "page" : undefined} className={page === item.id ? "nav-item active" : "nav-item"} onClick={() => setPage(item.id)}><Icon size={19} aria-hidden="true"/><span><b>{item.label}</b><small>{item.caption}</small></span></button>; })}</nav>
-      <div className="sidebar-foot"><span className="status-dot" aria-hidden="true"/><span>Stage 1 · Local only</span></div>
+      <div className="sidebar-foot"><span className="status-dot" aria-hidden="true"/><span>Stage 2 · Explicit downloads</span></div>
     </aside>
     <div className="main-column">
-      <header className="topbar"><div><span className="eyebrow">Windows desktop foundation</span><h1>{navigation.find(item => item.id === page)?.label}</h1></div><div className="privacy-pill">No remote requests</div></header>
+      <header className="topbar"><div><span className="eyebrow">Secure local source workspace</span><h1>{navigation.find(item => item.id === page)?.label}</h1></div><div className="privacy-pill">{SUPPORTED_GIT_PROVIDERS.length} supported forges · public HTTPS only</div></header>
       {startupError && <div className="banner error" role="alert">{startupError}<button aria-label="Dismiss error" onClick={() => setStartupError(null)}>×</button></div>}
       <main id="main-content" tabIndex={-1}>{content}</main>
     </div>

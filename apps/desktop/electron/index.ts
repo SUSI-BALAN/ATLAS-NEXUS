@@ -5,10 +5,12 @@ import { FolderService } from "./folderService.js";
 import { registerIpc } from "./ipc.js";
 import { secureWindowOptions } from "./windowPolicy.js";
 import { startStartupDiagnostics } from "./startupDiagnostics.js";
-import { installContentSecurityPolicy } from "./contentSecurityPolicy.js";
+import { installContentSecurityPolicy, usesDevelopmentContentSecurityPolicy } from "./contentSecurityPolicy.js";
 import { preloadPath } from "./runtimePaths.js";
+import { CloneService } from "./cloneService.js";
 
 let database: NexusDatabase | null = null;
+let cloneService: CloneService | null = null;
 const diagnostics = startStartupDiagnostics();
 diagnostics.record("module-loaded", { electron: process.versions.electron, chrome: process.versions.chrome, platform: process.platform });
 
@@ -29,8 +31,11 @@ async function createWindow(): Promise<void> {
   diagnostics.record("database-opening");
   database = await NexusDatabase.open(databasePath);
   diagnostics.record("database-opened");
+  const folderService = new FolderService();
+  cloneService = new CloneService(database, folderService);
+  await cloneService.initialize();
   const developmentUrl = !app.isPackaged ? process.env.ELECTRON_RENDERER_URL : undefined;
-  registerIpc({ window, database, databasePath, folderService: new FolderService(), ...(developmentUrl ? { developmentUrl } : {}) });
+  registerIpc({ window, database, databasePath, folderService, cloneService, ...(developmentUrl ? { developmentUrl } : {}) });
   if (developmentUrl) await window.loadURL(developmentUrl); else await window.loadFile(join(import.meta.dirname, "../renderer/index.html"));
   diagnostics.record("renderer-loaded");
 }
@@ -40,7 +45,7 @@ app.whenReady().then(async () => {
   app.setAppUserModelId("com.atlasnexus.desktop");
   session.defaultSession.setPermissionRequestHandler((_webContents, _permission, callback) => callback(false));
   session.defaultSession.setPermissionCheckHandler(() => false);
-  installContentSecurityPolicy(session.defaultSession, !app.isPackaged);
+  installContentSecurityPolicy(session.defaultSession, usesDevelopmentContentSecurityPolicy(app.isPackaged, process.env.ELECTRON_RENDERER_URL));
   try { await createWindow(); } catch (error) { diagnostics.record("startup-failed", { name: (error as Error).name }); console.error("Atlas Nexus failed to start", { errorName: (error as Error).name }); app.quit(); }
   app.on("activate", () => { if (BrowserWindow.getAllWindows().length === 0) void createWindow(); });
 });
@@ -51,5 +56,6 @@ app.on("before-quit", event => {
   diagnostics.record("before-quit");
   if (!database) return;
   event.preventDefault(); const current = database; database = null;
-  void current.close().finally(() => app.exit(0));
+  const currentCloneService = cloneService; cloneService = null;
+  void (currentCloneService?.shutdown() ?? Promise.resolve()).then(() => current.close()).finally(() => app.exit(0));
 });

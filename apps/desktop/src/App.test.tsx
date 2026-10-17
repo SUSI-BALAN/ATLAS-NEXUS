@@ -8,31 +8,43 @@ import { App } from "./App";
 
 const ok = <T,>(data: T) => ({ ok: true as const, data, requestId: "request" });
 const api: NexusApi = {
-  getAppStatus: vi.fn(async () => ok<AppStatus>({ version: "0.1.0", platform: "win32", databaseReady: true, databasePath: "C:\\Data\\nexus.sqlite", cloneEngineAvailable: false })),
+  getAppStatus: vi.fn(async () => ok<AppStatus>({ version: "0.1.0", platform: "win32", databaseReady: true, databasePath: "C:\\Data\\nexus.sqlite", cloneEngineAvailable: true })),
   getSettings: vi.fn(async () => ok<AppSettings>({ theme: "dark", preferredFolderPath: null })),
   updateSettings: vi.fn(async input => ok({ theme: input.theme ?? "dark", preferredFolderPath: null })),
   selectParentFolder: vi.fn(async () => ok(null)), restorePreferredFolder: vi.fn(async () => ok(null)),
-  getFolderInfo: vi.fn(), previewDestination: vi.fn(), createChildFolder: vi.fn(), savePreferredFolder: vi.fn(), openFolder: vi.fn()
+  getFolderInfo: vi.fn(), previewDestination: vi.fn(), createChildFolder: vi.fn(), savePreferredFolder: vi.fn(), openFolder: vi.fn(),
+  startClone: vi.fn(), listCloneJobs: vi.fn(async () => ok({ jobs: [], counts: { Queued: 0, Validating: 0, Downloading: 0, Verifying: 0, Completed: 0, Partial: 0, Failed: 0, Cancelled: 0, Interrupted: 0 } })), cancelClone: vi.fn(), retryClone: vi.fn()
 };
 
 beforeEach(() => { Object.defineProperty(window, "nexus", { configurable: true, value: api }); });
 afterEach(() => cleanup());
 
 describe("App navigation and honest states", () => {
-  it("renders the empty dashboard without fabricated repositories", async () => {
+  it("renders the empty dashboard without fabricated jobs", async () => {
     render(<App />);
-    expect(await screen.findByText("0 repositories")).toBeInTheDocument();
-    expect(screen.getByText("No sample records are inserted")).toBeInTheDocument();
+    expect(await screen.findByText("0 completed")).toBeInTheDocument();
+    expect(screen.getByText("0 active · 0 providers in persisted history")).toBeInTheDocument();
   });
   it("navigates to a clearly marked unimplemented page", async () => {
     render(<App />); await userEvent.click(screen.getByRole("button", { name: /AI Research/i }));
     expect(screen.getByText("AI is disabled")).toBeInTheDocument();
-    expect(screen.getByText("Not implemented in Stage 1")).toBeInTheDocument();
+    expect(screen.getByText("Future stage")).toBeInTheDocument();
   });
   it("rejects an unsafe clone URL and keeps clone execution disabled", async () => {
-    render(<App />); await userEvent.click(screen.getByRole("button", { name: /Clone from URL/i }));
-    await userEvent.type(screen.getByLabelText("GitHub repository URL"), "file:///c:/private");
-    expect(await screen.findByText(/Only public GitHub HTTPS/)).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Start clone in Stage 2" })).toBeDisabled();
+    render(<App />); await userEvent.click(screen.getAllByRole("button", { name: /Clone from URL/i })[0]!);
+    await userEvent.type(screen.getByLabelText("Repository URL"), "file:///c:/private");
+    expect(await screen.findByText(/Only public HTTPS repository URLs/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Start clone" })).toBeDisabled();
+  });
+
+  it.each([
+    ["https://github.com/a/b", "GitHub"], ["https://gitlab.com/a/subgroup/b", "GitLab"],
+    ["https://codeberg.org/a/b", "Codeberg"], ["https://gitea.com/a/b", "Gitea"],
+    ["https://v15.next.forgejo.org/a/b", "Forgejo Next"]
+  ])("shows the detected provider for %s without starting a job", async (url, label) => {
+    render(<App />); await userEvent.click(screen.getAllByRole("button", { name: /Clone from URL/i })[0]!);
+    await userEvent.type(screen.getByLabelText("Repository URL"), url);
+    expect(screen.getByText(`Valid public ${label} HTTPS URL`)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Start clone" })).toBeDisabled();
   });
 });

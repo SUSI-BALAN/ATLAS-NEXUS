@@ -1,5 +1,7 @@
 export type ThemePreference = "system" | "dark" | "light";
 export type CloneMode = "snapshot" | "full" | "mirror";
+export type GitProvider = "github" | "gitlab" | "codeberg" | "gitea" | "forgejo";
+export type CloneJobStatus = "Queued" | "Validating" | "Downloading" | "Verifying" | "Completed" | "Partial" | "Failed" | "Cancelled" | "Interrupted";
 
 export type ErrorCode =
   | "CANCELLED"
@@ -12,6 +14,20 @@ export type ErrorCode =
   | "PERMISSION_DENIED"
   | "UNSUPPORTED_PATH"
   | "DATABASE_UNAVAILABLE"
+  | "CLONE_UNAVAILABLE"
+  | "PRIVATE_REPOSITORY"
+  | "REPOSITORY_UNAVAILABLE"
+  | "TRANSPORT_ERROR"
+  | "RATE_LIMITED"
+  | "PROVIDER_UNAVAILABLE"
+  | "NETWORK_ERROR"
+  | "DOWNLOAD_TIMEOUT"
+  | "DIAGNOSTIC_LIMIT"
+  | "DISK_FULL"
+  | "GIT_FAILED"
+  | "INTERRUPTED"
+  | "RESOURCE_LIMIT"
+  | "VERIFICATION_FAILED"
   | "INTERNAL_ERROR";
 
 export interface SafeError { code: ErrorCode; message: string; requestId: string }
@@ -44,10 +60,43 @@ export interface AppStatus {
   platform: string;
   databaseReady: boolean;
   databasePath: string;
-  cloneEngineAvailable: false;
+  cloneEngineAvailable: boolean;
 }
 
-export interface GitUrlDetails { normalizedUrl: string; owner: string; repository: string }
+export interface GitUrlDetails {
+  normalizedUrl: string;
+  provider: GitProvider;
+  providerLabel: string;
+  hostname: string;
+  namespace: string;
+  owner: string;
+  repository: string;
+}
+
+export interface CloneJob {
+  id: string;
+  sourceUrl: string;
+  provider: GitProvider;
+  namespace: string;
+  repositoryName: string;
+  mode: CloneMode;
+  destinationPath: string;
+  status: CloneJobStatus;
+  phase: string;
+  progressPercent: number | null;
+  resolvedCommit: string | null;
+  verificationSummary: string | null;
+  errorCode: ErrorCode | null;
+  errorMessage: string | null;
+  retryOfJobId: string | null;
+  createdAt: string;
+  updatedAt: string;
+  startedAt: string | null;
+  completedAt: string | null;
+}
+
+export interface CloneStartInput { sourceUrl: string; mode: CloneMode; grantId: string; childName: string; confirmed: true; retryOfJobId?: string }
+export interface CloneJobSummary { jobs: CloneJob[]; counts: Record<CloneJobStatus, number> }
 
 export interface NexusApi {
   getAppStatus(): Promise<Result<AppStatus>>;
@@ -60,6 +109,10 @@ export interface NexusApi {
   createChildFolder(input: { grantId: string; childName: string }): Promise<Result<DestinationPreview>>;
   savePreferredFolder(input: { grantId: string }): Promise<Result<AppSettings>>;
   openFolder(input: { grantId: string; childName?: string }): Promise<Result<null>>;
+  startClone(input: CloneStartInput): Promise<Result<CloneJob>>;
+  listCloneJobs(): Promise<Result<CloneJobSummary>>;
+  cancelClone(input: { jobId: string }): Promise<Result<CloneJob>>;
+  retryClone(input: { jobId: string; grantId: string; childName: string; confirmed: true }): Promise<Result<CloneJob>>;
 }
 
 export const IPC_CHANNELS = {
@@ -72,5 +125,9 @@ export const IPC_CHANNELS = {
   folderPreview: "nexus:folder:preview",
   folderCreate: "nexus:folder:create",
   folderSave: "nexus:folder:save",
-  folderOpen: "nexus:folder:open"
+  folderOpen: "nexus:folder:open",
+  cloneStart: "nexus:clone:start",
+  cloneList: "nexus:clone:list",
+  cloneCancel: "nexus:clone:cancel",
+  cloneRetry: "nexus:clone:retry"
 } as const;

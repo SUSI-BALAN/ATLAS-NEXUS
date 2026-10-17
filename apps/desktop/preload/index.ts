@@ -13,7 +13,11 @@ const api: NexusApi = Object.freeze({
   previewDestination: (input: Parameters<NexusApi["previewDestination"]>[0]) => invoke<"previewDestination">(IPC_CHANNELS.folderPreview, input),
   createChildFolder: (input: Parameters<NexusApi["createChildFolder"]>[0]) => invoke<"createChildFolder">(IPC_CHANNELS.folderCreate, input),
   savePreferredFolder: (input: Parameters<NexusApi["savePreferredFolder"]>[0]) => invoke<"savePreferredFolder">(IPC_CHANNELS.folderSave, input),
-  openFolder: (input: Parameters<NexusApi["openFolder"]>[0]) => invoke<"openFolder">(IPC_CHANNELS.folderOpen, input)
+  openFolder: (input: Parameters<NexusApi["openFolder"]>[0]) => invoke<"openFolder">(IPC_CHANNELS.folderOpen, input),
+  startClone: (input: Parameters<NexusApi["startClone"]>[0]) => invoke<"startClone">(IPC_CHANNELS.cloneStart, input),
+  listCloneJobs: () => invoke<"listCloneJobs">(IPC_CHANNELS.cloneList),
+  cancelClone: (input: Parameters<NexusApi["cancelClone"]>[0]) => invoke<"cancelClone">(IPC_CHANNELS.cloneCancel, input),
+  retryClone: (input: Parameters<NexusApi["retryClone"]>[0]) => invoke<"retryClone">(IPC_CHANNELS.cloneRetry, input)
 });
 
 contextBridge.exposeInMainWorld("nexus", api);

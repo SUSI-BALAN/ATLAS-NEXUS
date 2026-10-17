@@ -1,4 +1,4 @@
-import { lstat, mkdtemp, mkdir, rm } from "node:fs/promises";
+import { lstat, mkdtemp, mkdir, rename, rm, symlink } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -36,6 +36,25 @@ describe("FolderService", () => {
     const service = new FolderService(); const grant = await service.grant(parent);
     const preview = await service.preview(grant.id, "existing");
     expect(preview).toMatchObject({ exists: true, valid: false });
+  });
+
+  it("fails closed when another process creates the destination after preview", async () => {
+    const parent = await mkdtemp(path.join(tmpdir(), "nexus-folder-")); directories.push(parent);
+    const service = new FolderService(); const grant = await service.grant(parent);
+    const preview = await service.preview(grant.id, "race-target");
+    await mkdir(preview.destinationPath);
+    await expect(service.revalidateCloneDestination(grant.id, "race-target", preview.parentPath, preview.destinationPath)).rejects.toMatchObject({ code: "PATH_COLLISION" });
+  });
+
+  it("fails closed when an approved parent is substituted with a reparse point", async () => {
+    const root = await mkdtemp(path.join(tmpdir(), "nexus-folder-")); directories.push(root);
+    const parent = path.join(root, "parent"); const moved = path.join(root, "moved"); const other = path.join(root, "other");
+    await mkdir(parent); await mkdir(other);
+    const service = new FolderService(); const grant = await service.grant(parent);
+    await rename(parent, moved);
+    try { await symlink(other, parent, process.platform === "win32" ? "junction" : "dir"); }
+    catch (error) { if ((error as NodeJS.ErrnoException).code === "EPERM") return; throw error; }
+    await expect(service.info(grant.id)).rejects.toMatchObject({ code: "UNSUPPORTED_PATH" });
   });
 });
 
