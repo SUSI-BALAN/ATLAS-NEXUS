@@ -54,15 +54,15 @@ The live gated suite uses the small public `https://github.com/octocat/Hello-Wor
 
 ## Native Windows acceptance
 
-The owner reported successful Windows application Snapshot, Full Clone, and Mirror downloads and PowerShell-confirmed Git structures. These outcomes establish owner-reported native G01 evidence only. Active cancellation, confirmed retry, history persistence after restart, production-mode cloning, and clean shutdown were not reported and remain NOT RUN. Automated and live subprocess evidence does not establish those UI outcomes or real owner-session permission denial and disk-full behavior.
+The owner reported successful Windows application Snapshot, Full Clone, and Mirror operation across all five approved providers. On 2026-10-17 the owner also explicitly reported native PASS for active cancellation, Review retry / Confirm retry, SQLite history persistence after restart, safe interruption recovery, collision rejection without overwrite, restrictive-CSP production cloning, destination opening, and clean shutdown. These outcomes are OWNER-REPORTED PASS unless an artifact or database row is separately identified; automated and live subprocess evidence remains separately classified.
 
 Owner procedure:
 
-The remaining procedure is maintained in [Stage 2 owner acceptance](../testing/stage-2-owner-acceptance.md). It uses new disposable child names only and must not touch the owner's successful clones or existing SQLite records.
+The completed procedure and evidence provenance are maintained in [Stage 2 owner acceptance](../testing/stage-2-owner-acceptance.md). It must not be repeated against successful clones merely to create duplicate evidence.
 
 ## Decision
 
-**PENDING NATIVE ACCEPTANCE.** G01–G05 pass with the evidence qualifications above. G06 retains real owner-session offline, ACL-denied, and disk-full/quota checks. Required native active cancellation, confirmed retry, restart persistence, production-mode cloning, and clean shutdown remain NOT RUN. Stage 3 must not begin until the owner accepts Stage 2 or explicitly authorizes work despite these documented gaps.
+**GO.** G01–G05 meet the documented Stage 2.3 acceptance requirements through combined automated, independently inspected, and owner-reported native evidence. G06 retains real ACL-denied, disk-full/quota, and difficult reparse-race tests as explicit noncritical NOT RUN limitations. This sign-off authorizes Stage 2.5 publication preparation only after separate owner approval; it does not authorize publication, deployment, or Stage 3 implementation.
 
 ## Stage 2.3 multi-forge extension — 2026-10-14
 
@@ -82,6 +82,8 @@ The `regulad/dotfiles` Full failure was reproduced at checkout. Its 158-characte
 
 Future unexpected failures record a safe operation stage, Git verification messages identify revision/tree/checkout/integrity/structure/ref phases, diagnostic-limit and disk-full categories are distinct, Interrupted has its own error code, and Clone Manager displays the job ID. The historical GitLab Mirror `INTERNAL_ERROR` remains unchanged and undiagnosed because no raw diagnostic or stage marker exists for that six-millisecond record.
 
-Exact isolated live checks passed for GitLab Full and Gitea.com Snapshot. The Gitea Snapshot additionally matched every final path and Git blob ID through the provider API. These are automated `CloneService` PASS results, not owner-native GUI acceptance and not additions to the owner profile. Native cancellation/retry/restart/interruption/collision, production rendering/cloning, destination opening, and shutdown remain pending because the Windows automation surface exposed no controllable Atlas Nexus window. Real ACL denial and disk/quota remain NOT RUN.
+Exact isolated live checks passed for GitLab Full and Gitea.com Snapshot. The Gitea Snapshot additionally matched every final path and Git blob ID through the provider API. The owner subsequently reported native GUI PASS for both missing combinations and all required lifecycle/production checks. Read-only inspection of the current profile still contains 22 rows (13 Completed and 9 Failed) and does not correlate the new native reports to persisted job IDs, destinations, revisions, or timestamps; no such metadata is invented. Real ACL denial, disk/quota exhaustion, and difficult native reparse races remain NOT RUN.
 
-An existing native development window at `http://localhost:5174/` rendered the new header, persisted Dashboard counts, and detected GitLab correctly. The native picker opened and navigated to a fresh ignored test parent, but automation could not reliably operate its selection controls; no new native clone was started. The earlier managed-session production launch emitted profile/cache access errors (`0x5`) and a DPAPI decrypt error before startup failed; these messages do not establish the exact failure cause. No ACL, cache, sandbox, or credential-store workaround was attempted. New native clone/mode checks, active cancellation/retry, restart, production rendering/cloning, and clean shutdown remain NOT RUN. See [the Stage 2.3 report](stage-2-3-implementation.md) for the final evidence and owner handoff.
+Earlier managed-session automation could not reliably operate the native picker and did not establish native results. The later owner report supplies the required native outcomes and is intentionally labeled OWNER-REPORTED PASS, not independently inspected. See [the official Stage 2.3 sign-off](stage-2-3-final-stabilization.md) for final evidence and limitations.
+
+Final sign-off checks on 2026-10-17 all exited 0: typecheck; routine Vitest with 16 files passed, 3 skipped, 130 tests passed and 24 skipped; production build; standalone preload verification; npm audit with zero vulnerabilities across 299 dependencies; and `git diff --check`. The four exact Stage 2.3 live-provider tests remain the preceding verified baseline and were not rerun for this documentation-only sign-off.

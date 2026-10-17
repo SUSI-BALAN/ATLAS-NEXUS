@@ -47,14 +47,14 @@ Stop on any overwrite, unexpected code execution, credential prompt, security-co
 
 ## F. Stage 2.3 five-provider native matrix
 
-The automated Git transport matrix passes for the fixtures below. Read-only owner-profile reconciliation independently verifies 13/15 provider/mode combinations; GitLab Full and Gitea.com Snapshot remain missing from the owner profile, although exact isolated `CloneService` live checks now pass for both. GUI acceptance for those two modes and all lifecycle rows remains NOT RUN.
+The automated Git transport matrix passes for all 15 combinations. Read-only owner-profile reconciliation independently verifies 13/15 combinations. The owner subsequently reported native PASS for GitLab Full, Gitea.com Snapshot, and every required lifecycle/production check. The inspected profile does not independently correlate the two new clone reports, so their native identifiers and timestamps remain unreported rather than inferred.
 
 | Provider | Verified public fixture | Native Snapshot | Native Full | Native Mirror |
 | --- | --- | --- | --- | --- |
 | GitHub | Existing reconciled sources | OWNER ARTIFACT PASS | OWNER ARTIFACT PASS | OWNER ARTIFACT PASS |
-| GitLab | `https://gitlab.com/antora/antora-collector.git` | OWNER ARTIFACT PASS | AUTOMATED PASS; GUI NOT RUN | OWNER ARTIFACT PASS (separate source) |
+| GitLab | `https://gitlab.com/antora/antora-collector.git` | INDEPENDENT ARTIFACT PASS | AUTOMATED PASS + OWNER-REPORTED NATIVE PASS | INDEPENDENT ARTIFACT PASS (separate source) |
 | Codeberg | Existing reconciled sources | OWNER ARTIFACT PASS | OWNER ARTIFACT PASS | OWNER ARTIFACT PASS |
-| Gitea.com | `https://gitea.com/SnapperGee/climax-prompt-python.git` | AUTOMATED PASS; GUI NOT RUN | OWNER ARTIFACT PASS | OWNER ARTIFACT PASS |
+| Gitea.com | `https://gitea.com/SnapperGee/climax-prompt-python.git` | AUTOMATED/API PASS + OWNER-REPORTED NATIVE PASS | INDEPENDENT ARTIFACT PASS | INDEPENDENT ARTIFACT PASS |
 | Forgejo Next | Existing reconciled sources | OWNER ARTIFACT PASS | OWNER ARTIFACT PASS | OWNER ARTIFACT PASS |
 
 1. Select the fresh test parent through Browse. Do not save it over the owner's preferred folder unless desired. Use a unique child for every provider/mode, for example `gitlab-snapshot-20261014-2315`.
@@ -63,3 +63,7 @@ The automated Git transport matrix passes for the fixtures below. Read-only owne
 4. Retry the same child through Clone from URL to verify collision rejection and unchanged existing files. Never delete a successful clone to make a test pass.
 5. Close/relaunch normally and confirm all old and new job rows retain statuses and provenance. Close development mode and its server before starting production preview so two application instances do not write the same database.
 6. Run sections A–E and record outcomes. If Forgejo Next becomes unavailable, rate limited, or presents an anti-bot barrier, retain its safe error and mark the native case BLOCKED; do not bypass it.
+
+## G. Final owner report — 2026-10-17
+
+The owner explicitly reported PASS for GitLab Full, Gitea.com Snapshot, cancellation while Downloading, Review retry and Confirm retry, SQLite history after restart, shutdown interruption recovery, destination collision preservation, restrictive-CSP production cloning, destination opening, and clean shutdown. These are OWNER-REPORTED PASS outcomes. No separate artifact was inspected for this final report, and missing native job metadata is not fabricated. Real ACL-denied, disk-full/quota and difficult native reparse-race cases remain NOT RUN.
