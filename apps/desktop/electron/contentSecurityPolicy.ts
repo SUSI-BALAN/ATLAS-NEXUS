@@ -43,6 +43,10 @@ export const PRODUCTION_CONTENT_SECURITY_POLICY = contentSecurityPolicy(false);
 export const DEVELOPMENT_CONTENT_SECURITY_POLICY = contentSecurityPolicy(true);
 export const CONTENT_SECURITY_POLICY = PRODUCTION_CONTENT_SECURITY_POLICY;
 
+export function usesDevelopmentContentSecurityPolicy(isPackaged: boolean, rendererUrl: string | undefined): boolean {
+  return !isPackaged && Boolean(rendererUrl);
+}
+
 export function installContentSecurityPolicy(target: Pick<Session, "webRequest">, development = false): void {
   const policy = development ? DEVELOPMENT_CONTENT_SECURITY_POLICY : PRODUCTION_CONTENT_SECURITY_POLICY;
   target.webRequest.onHeadersReceived({ urls: ["file://*", "http://127.0.0.1/*", "http://localhost/*"] }, (details, callback) => {

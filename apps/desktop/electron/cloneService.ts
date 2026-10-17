@@ -11,7 +11,8 @@ import { FolderService, FolderServiceError } from "./folderService.js";
 export const CLONE_LIMITS = Object.freeze({
   concurrentJobs: 1,
   durationMs: 15 * 60_000,
-  outputBytes: 1_000_000,
+  diagnosticBytes: 1_000_000,
+  structuredOutputBytes: 16 * 1024 * 1024,
   files: 50_000,
   bytes: 2 * 1024 * 1024 * 1024,
   retainedJobs: 100,
@@ -30,14 +31,16 @@ const gitConfig = [
   "-c", "filter.lfs.smudge=",
   "-c", "filter.lfs.process=",
   "-c", "filter.lfs.required=false",
-  "-c", "core.symlinks=false"
+  "-c", "core.symlinks=false",
+  "-c", "core.longpaths=true"
 ] as const;
 
 export class CloneServiceError extends Error {
   constructor(readonly code: ErrorCode, message: string) { super(message); this.name = "CloneServiceError"; }
 }
 
-type GitOperation = "download" | "verification";
+type GitOperation = "download" | "revision" | "tree" | "checkout" | "integrity" | "structure" | "refs" | "verification";
+type CloneFailureStage = "destination validation" | "staging setup" | "download" | "verification" | "publication" | "finalization";
 
 interface ActiveJob { controller: AbortController; process: ChildProcessWithoutNullStreams | null }
 
@@ -55,7 +58,7 @@ export class CloneService {
       active.controller.abort(); if (active.process) terminateOwnedProcess(active.process);
       const current = this.database.getCloneJob(jobId);
       if (current && ["Queued", "Validating", "Downloading", "Verifying"].includes(current.status)) {
-        await this.database.updateCloneJob(jobId, { status: "Interrupted", phase: "Interrupted", progressPercent: null, errorCode: "INTERNAL_ERROR", errorMessage: "The application closed before this job completed.", completedAt: now });
+        await this.database.updateCloneJob(jobId, { status: "Interrupted", phase: "Interrupted", progressPercent: null, errorCode: "INTERRUPTED", errorMessage: "The application closed before this job completed.", completedAt: now });
       }
     }));
     await this.queue;
@@ -97,22 +100,28 @@ export class CloneService {
 
   private async execute(jobId: string, grantId: string, childName: string, parentPath: string, destinationPath: string, signal: AbortSignal): Promise<void> {
     let stageRoot: string | null = null;
+    let failureStage: CloneFailureStage = "destination validation";
     try {
       if (signal.aborted) throw new CloneServiceError("CANCELLED", "Cancelled by the owner.");
       await this.database.updateCloneJob(jobId, { status: "Validating", phase: "Validating destination", startedAt: new Date().toISOString(), progressPercent: null });
       await this.folders.revalidateCloneDestination(grantId, childName, parentPath, destinationPath);
+      failureStage = "staging setup";
       stageRoot = path.join(parentPath, `.atlas-nexus-stage-${jobId}`);
       await mkdir(stageRoot, { recursive: false });
       await writeFile(path.join(stageRoot, ".atlas-nexus-owner.json"), JSON.stringify({ jobId, version: 1 }), { flag: "wx" });
       const payload = path.join(stageRoot, "payload");
       const job = this.get(jobId);
       await this.database.updateCloneJob(jobId, { status: "Downloading", phase: "Downloading", progressPercent: null });
+      failureStage = "download";
       const commit = await this.download(jobId, job.mode, job.sourceUrl, payload, stageRoot, signal);
       if (signal.aborted) throw new CloneServiceError("CANCELLED", "Cancelled by the owner.");
       await this.database.updateCloneJob(jobId, { status: "Verifying", phase: "Verifying", progressPercent: null, resolvedCommit: commit });
+      failureStage = "verification";
       const verification = await this.verify(jobId, job.mode, payload, stageRoot, signal);
+      failureStage = "publication";
       await this.folders.revalidateCloneDestination(grantId, childName, parentPath, destinationPath);
       await rename(payload, destinationPath);
+      failureStage = "finalization";
       await unlink(path.join(stageRoot, ".atlas-nexus-owner.json"));
       await rmdir(stageRoot);
       stageRoot = null;
@@ -121,8 +130,8 @@ export class CloneService {
       const current = this.database.getCloneJob(jobId);
       const cancelled = signal.aborted || (error instanceof CloneServiceError && error.code === "CANCELLED") || current?.status === "Cancelled";
       if (!cancelled) {
-        const mapped = mapCloneError(error);
-        await this.database.updateCloneJob(jobId, { status: "Failed", phase: "Failed", progressPercent: null, errorCode: mapped.code, errorMessage: mapped.message, completedAt: new Date().toISOString() });
+        const mapped = mapCloneError(error, failureStage);
+        await this.database.updateCloneJob(jobId, { status: "Failed", phase: `Failed during ${failureStage}`, progressPercent: null, errorCode: mapped.code, errorMessage: mapped.message, completedAt: new Date().toISOString() });
       }
     } finally {
       this.active.delete(jobId);
@@ -132,27 +141,27 @@ export class CloneService {
 
   private async download(jobId: string, mode: CloneMode, sourceUrl: string, payload: string, isolatedHome: string, signal: AbortSignal): Promise<string> {
     if (mode === "mirror") {
-      await this.git(jobId, ["clone", "--mirror", "--no-recurse-submodules", "--", sourceUrl, payload], isolatedHome, signal, "download");
-      return (await this.git(jobId, ["-C", payload, "rev-parse", "HEAD"], isolatedHome, signal, "verification")).trim();
+      await this.git(jobId, ["clone", "--quiet", "--mirror", "--no-recurse-submodules", "--", sourceUrl, payload], isolatedHome, signal, "download");
+      return (await this.git(jobId, ["-C", payload, "rev-parse", "HEAD"], isolatedHome, signal, "revision")).trim();
     }
     const modeArgs = mode === "snapshot" ? ["--depth=1", "--single-branch", "--no-tags"] : [];
-    await this.git(jobId, ["clone", "--no-checkout", "--no-recurse-submodules", ...modeArgs, "--", sourceUrl, payload], isolatedHome, signal, "download");
-    const commit = (await this.git(jobId, ["-C", payload, "rev-parse", "HEAD"], isolatedHome, signal, "verification")).trim();
-    const tree = await this.git(jobId, ["-C", payload, "ls-tree", "-rz", "--full-tree", commit], isolatedHome, signal, "verification");
+    await this.git(jobId, ["clone", "--quiet", "--no-checkout", "--no-recurse-submodules", ...modeArgs, "--", sourceUrl, payload], isolatedHome, signal, "download");
+    const commit = (await this.git(jobId, ["-C", payload, "rev-parse", "HEAD"], isolatedHome, signal, "revision")).trim();
+    const tree = await this.git(jobId, ["-C", payload, "ls-tree", "-rz", "--full-tree", commit], isolatedHome, signal, "tree");
     validateGitTree(tree);
-    await this.git(jobId, ["-C", payload, "checkout", "--force", "HEAD", "--", "."], isolatedHome, signal, "verification");
+    await this.git(jobId, ["-C", payload, "checkout", "--quiet", "--force", "HEAD", "--", "."], isolatedHome, signal, "checkout");
     return commit;
   }
 
   private async verify(jobId: string, mode: CloneMode, payload: string, isolatedHome: string, signal: AbortSignal): Promise<string> {
     if (mode === "mirror") {
-      const bare = (await this.git(jobId, ["-C", payload, "rev-parse", "--is-bare-repository"], isolatedHome, signal, "verification")).trim();
+      const bare = (await this.git(jobId, ["-C", payload, "rev-parse", "--is-bare-repository"], isolatedHome, signal, "structure")).trim();
       if (bare !== "true") throw new CloneServiceError("VERIFICATION_FAILED", "The mirror did not produce a bare repository.");
-      await this.git(jobId, ["-C", payload, "fsck", "--full", "--no-progress"], isolatedHome, signal, "verification");
-      const refs = (await this.git(jobId, ["-C", payload, "for-each-ref", "--format=%(refname)"], isolatedHome, signal, "verification")).split(/\r?\n/).filter(Boolean).length;
+      await this.git(jobId, ["-C", payload, "fsck", "--full", "--no-progress"], isolatedHome, signal, "integrity");
+      const refs = (await this.git(jobId, ["-C", payload, "for-each-ref", "--format=%(refname)"], isolatedHome, signal, "refs")).split(/\r?\n/).filter(Boolean).length;
       return `Bare mirror verified with ${refs} refs; external LFS assets and unreachable remote objects are not claimed.`;
     }
-    await this.git(jobId, ["-C", payload, "fsck", "--full", "--no-progress"], isolatedHome, signal, "verification");
+    await this.git(jobId, ["-C", payload, "fsck", "--full", "--no-progress"], isolatedHome, signal, "integrity");
     const lfsPointers = await countLfsPointers(payload, 256);
     if (mode === "snapshot") await rm(path.join(payload, ".git"), { recursive: true, force: false });
     const totals = await inspectPayload(payload, CLONE_LIMITS.files, CLONE_LIMITS.bytes);
@@ -195,12 +204,15 @@ async function runGit(args: string[], env: NodeJS.ProcessEnv, signal: AbortSigna
   return new Promise((resolve, reject) => {
     const child = spawn("git", args, { shell: false, windowsHide: true, env, stdio: "pipe" });
     onStart(child);
-    let output = ""; let bytes = 0; let settled = false;
-    const finish = (error?: Error): void => { if (settled) return; settled = true; clearTimeout(timer); signal.removeEventListener("abort", abort); error ? reject(error) : resolve(output); };
-    const append = (chunk: Buffer): void => { bytes += chunk.length; if (bytes > CLONE_LIMITS.outputBytes) { terminateOwnedProcess(child); finish(new CloneServiceError("RESOURCE_LIMIT", "Git exceeded the diagnostic output safety limit.")); return; } output += chunk.toString("utf8"); };
-    child.stdout.on("data", append); child.stderr.on("data", append);
+    const output = new BoundedGitOutput(); let settled = false;
+    const finish = (error?: Error): void => { if (settled) return; settled = true; clearTimeout(timer); signal.removeEventListener("abort", abort); error ? reject(error) : resolve(output.stdout); };
+    const append = (channel: "stdout" | "stderr", chunk: Buffer): void => {
+      try { output.append(channel, chunk); }
+      catch (error) { terminateOwnedProcess(child); finish(error as Error); }
+    };
+    child.stdout.on("data", chunk => append("stdout", chunk)); child.stderr.on("data", chunk => append("stderr", chunk));
     child.on("error", () => finish(new CloneServiceError("CLONE_UNAVAILABLE", "Git could not be started.")));
-    child.on("close", code => { if (signal.aborted) finish(new CloneServiceError("CANCELLED", "Cancelled by the owner.")); else if (code !== 0) finish(classifyGitFailure(output, operation)); else finish(); });
+    child.on("close", code => { if (signal.aborted) finish(new CloneServiceError("CANCELLED", "Cancelled by the owner.")); else if (code !== 0) finish(classifyGitFailure(output.stderr, operation)); else finish(); });
     const abort = (): void => { terminateOwnedProcess(child); finish(new CloneServiceError("CANCELLED", "Cancelled by the owner.")); };
     signal.addEventListener("abort", abort, { once: true });
     const timer = setTimeout(() => { terminateOwnedProcess(child); finish(new CloneServiceError("DOWNLOAD_TIMEOUT", "The clone exceeded the 15-minute safety limit.")); }, CLONE_LIMITS.durationMs);
@@ -209,14 +221,44 @@ async function runGit(args: string[], env: NodeJS.ProcessEnv, signal: AbortSigna
 
 export function classifyGitFailure(output: string, operation: GitOperation): CloneServiceError {
   const normalized = output.toLowerCase();
-  if (operation === "verification") return new CloneServiceError("VERIFICATION_FAILED", "The downloaded Git data could not be verified.");
+  if (operation !== "download") {
+    const messages: Record<Exclude<GitOperation, "download">, string> = {
+      revision: "Git could not resolve the downloaded repository revision.",
+      tree: "Git could not enumerate the downloaded source tree.",
+      checkout: "Git could not safely materialize the downloaded working tree.",
+      integrity: "The downloaded Git objects failed integrity verification.",
+      structure: "The downloaded Git repository structure could not be verified.",
+      refs: "The downloaded Git references could not be verified.",
+      verification: "The downloaded Git data could not be verified."
+    };
+    return new CloneServiceError("VERIFICATION_FAILED", messages[operation]);
+  }
   if (/too many requests|rate limit(?:ed| exceeded)?|http (?:error )?429|the requested url returned error: 429/.test(normalized)) return new CloneServiceError("RATE_LIMITED", "The repository provider temporarily refused the request because its rate limit was reached.");
   if (/the requested url returned error: 5\d\d|service unavailable|bad gateway|gateway timeout|captcha|anti-bot/.test(normalized)) return new CloneServiceError("PROVIDER_UNAVAILABLE", "The repository provider is unavailable or restricting anonymous Git access. Retry later.");
   if (/the requested url returned error: 403|remote:\s*(?:access denied|forbidden)/.test(normalized)) return new CloneServiceError("REPOSITORY_UNAVAILABLE", "The provider refused anonymous repository access. It may require authentication or restrict automated requests.");
   if (/authentication failed|permission denied|the requested url returned error: 401/.test(normalized)) return new CloneServiceError("PRIVATE_REPOSITORY", "The repository requires credentials or access that Atlas Nexus does not use.");
   if (/repository not found|not found|does not appear to be a git repository|could not read username|terminal prompts disabled/.test(normalized)) return new CloneServiceError("REPOSITORY_UNAVAILABLE", "The repository was not found, is private, or is unavailable.");
   if (/could not resolve host|failed to connect|connection (?:timed out|refused|reset)|ssl|tls|schannel|certificate|network is unreachable/.test(normalized)) return new CloneServiceError("TRANSPORT_ERROR", "The repository provider could not be reached securely.");
-  return new CloneServiceError("NETWORK_ERROR", "The repository download failed before verification.");
+  return new CloneServiceError("GIT_FAILED", "Git could not complete the requested repository operation.");
+}
+
+export class BoundedGitOutput {
+  stdout = "";
+  stderr = "";
+  private stdoutBytes = 0;
+  private stderrBytes = 0;
+
+  append(channel: "stdout" | "stderr", chunk: Buffer): void {
+    if (channel === "stdout") {
+      this.stdoutBytes += chunk.length;
+      if (this.stdoutBytes > CLONE_LIMITS.structuredOutputBytes) throw new CloneServiceError("RESOURCE_LIMIT", "Git structured output exceeded the repository safety limit.");
+      this.stdout += chunk.toString("utf8");
+      return;
+    }
+    this.stderrBytes += chunk.length;
+    if (this.stderrBytes > CLONE_LIMITS.diagnosticBytes) throw new CloneServiceError("DIAGNOSTIC_LIMIT", "Git diagnostic output exceeded the safety limit.");
+    this.stderr += chunk.toString("utf8");
+  }
 }
 
 function terminateOwnedProcess(child: ChildProcessWithoutNullStreams): void {
@@ -265,12 +307,13 @@ export async function cleanupOwnedStage(stageRoot: string, jobId: string): Promi
   } catch { /* fail closed: retain unproven data */ }
 }
 
-export function mapCloneError(error: unknown): CloneServiceError {
+export function mapCloneError(error: unknown, failureStage?: CloneFailureStage): CloneServiceError {
   if (error instanceof CloneServiceError) return error;
   if (error instanceof FolderServiceError) return new CloneServiceError(error.code, error.message);
   const code = (error as NodeJS.ErrnoException).code;
   if (code === "EEXIST" || code === "ENOTEMPTY") return new CloneServiceError("PATH_COLLISION", "The destination was created by another process before publication.");
   if (code === "EACCES" || code === "EPERM") return new CloneServiceError("PERMISSION_DENIED", "Windows denied a required filesystem operation.");
-  if (code === "ENOSPC" || code === "EDQUOT") return new CloneServiceError("RESOURCE_LIMIT", "The destination does not have enough available storage.");
-  return new CloneServiceError("INTERNAL_ERROR", "The clone could not be completed safely.");
+  if (code === "ENOSPC" || code === "EDQUOT") return new CloneServiceError("DISK_FULL", "The destination does not have enough available storage.");
+  const context = failureStage ? ` during ${failureStage}` : "";
+  return new CloneServiceError("INTERNAL_ERROR", `The clone could not be completed safely${context}.`);
 }

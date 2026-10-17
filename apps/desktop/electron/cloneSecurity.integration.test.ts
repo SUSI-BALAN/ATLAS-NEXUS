@@ -9,6 +9,11 @@ const roots: string[] = [];
 afterEach(async () => { for (const root of roots.splice(0)) await rm(root, { recursive: true, force: true }); });
 
 describe("G03 hostile Git execution isolation", () => {
+  it("enables Git for Windows long-path handling only inside the isolated command", async () => {
+    const root = await mkdtemp(path.join(tmpdir(), "nexus-longpaths-git-")); roots.push(root);
+    expect((await runIsolatedGitForTest(["config", "--get", "core.longpaths"], root)).trim()).toBe("true");
+  });
+
   it("blocks repository hooks, external filters, LFS smudge, inherited config, local transports, and recursive submodules", async () => {
     const root = await mkdtemp(path.join(tmpdir(), "nexus-hostile-git-")); roots.push(root);
     const repository = path.join(root, "repository"); const isolatedHome = path.join(root, "isolated"); const hostileHome = path.join(root, "hostile-home");
@@ -41,7 +46,7 @@ describe("G03 hostile Git execution isolation", () => {
       await expect(lstat(hookMarker)).rejects.toMatchObject({ code: "ENOENT" });
       await expect(lstat(filterMarker)).rejects.toMatchObject({ code: "ENOENT" });
       await expect(lstat(path.join(repository, "vendor", "sub", ".git"))).rejects.toMatchObject({ code: "ENOENT" });
-      await expect(runIsolatedGitForTest(["clone", "--", repository, path.join(root, "forbidden-clone")], isolatedHome, "download")).rejects.toMatchObject({ code: "NETWORK_ERROR" });
+      await expect(runIsolatedGitForTest(["clone", "--", repository, path.join(root, "forbidden-clone")], isolatedHome, "download")).rejects.toMatchObject({ code: "GIT_FAILED" });
     } finally {
       if (previousGlobal === undefined) delete process.env.GIT_CONFIG_GLOBAL; else process.env.GIT_CONFIG_GLOBAL = previousGlobal;
     }

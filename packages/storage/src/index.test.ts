@@ -62,7 +62,7 @@ describe("NexusDatabase", () => {
     await db.updateCloneJob(queued.id, { status: "Downloading", phase: "Downloading", progressPercent: 25 });
     expect((await db.reconcileInterruptedCloneJobs())).toBe(1);
     const restored = db.getCloneJob(queued.id);
-    expect(restored).toMatchObject({ status: "Interrupted", phase: "Interrupted", progressPercent: null, errorCode: "INTERNAL_ERROR" });
+    expect(restored).toMatchObject({ status: "Interrupted", phase: "Interrupted", progressPercent: null, errorCode: "INTERRUPTED" });
     await db.close();
   });
 

@@ -5,7 +5,8 @@ import {
   PRODUCTION_CONTENT_SECURITY_POLICY,
   VITE_REACT_REFRESH_PREAMBLE,
   VITE_REACT_REFRESH_PREAMBLE_HASH,
-  installContentSecurityPolicy
+  installContentSecurityPolicy,
+  usesDevelopmentContentSecurityPolicy
 } from "./contentSecurityPolicy.js";
 
 function captureInstalledPolicy(development = false): string {
@@ -48,5 +49,11 @@ describe("content security policy", () => {
     expect(PRODUCTION_CONTENT_SECURITY_POLICY).not.toContain("localhost");
     expect(PRODUCTION_CONTENT_SECURITY_POLICY).not.toContain("127.0.0.1");
     expect(PRODUCTION_CONTENT_SECURITY_POLICY).not.toContain("ws:");
+  });
+
+  it("keeps built preview on the production policy even when Electron is not packaged", () => {
+    expect(usesDevelopmentContentSecurityPolicy(false, undefined)).toBe(false);
+    expect(usesDevelopmentContentSecurityPolicy(false, "http://localhost:5173")).toBe(true);
+    expect(usesDevelopmentContentSecurityPolicy(true, "http://localhost:5173")).toBe(false);
   });
 });

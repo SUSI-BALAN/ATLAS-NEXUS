@@ -156,7 +156,7 @@ export class NexusDatabase {
     if (count === 0) return 0;
     const now = new Date().toISOString();
     return this.serialize(async () => {
-      this.database.run(`UPDATE clone_jobs SET status='Interrupted', phase='Interrupted', progress_percent=NULL, error_code='INTERNAL_ERROR', error_message='The application closed before this job completed. Retry requires confirmation.', completed_at=?, updated_at=? WHERE status IN (${placeholders})`, [now, now, ...active]);
+      this.database.run(`UPDATE clone_jobs SET status='Interrupted', phase='Interrupted', progress_percent=NULL, error_code='INTERRUPTED', error_message='The application closed before this job completed. Retry requires confirmation.', completed_at=?, updated_at=? WHERE status IN (${placeholders})`, [now, now, ...active]);
       await this.persist(); return count;
     });
   }

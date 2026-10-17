@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { CLONE_LIMITS, CloneServiceError, classifyGitFailure, isolatedGitEnvironment, mapCloneError, validateGitTree } from "./cloneService.js";
+import { BoundedGitOutput, CLONE_LIMITS, CloneServiceError, classifyGitFailure, isolatedGitEnvironment, mapCloneError, validateGitTree } from "./cloneService.js";
 
 describe("clone security policy", () => {
   it("isolates inherited Git configuration, credentials, and LFS smudge", () => {
@@ -22,7 +22,7 @@ describe("clone security policy", () => {
   });
 
   it("defines bounded resources and disables automatic retries", () => {
-    expect(CLONE_LIMITS).toMatchObject({ concurrentJobs: 1, durationMs: 900000, outputBytes: 1000000, files: 50000, automaticRetries: 0 });
+    expect(CLONE_LIMITS).toMatchObject({ concurrentJobs: 1, durationMs: 900000, diagnosticBytes: 1000000, structuredOutputBytes: 16777216, files: 50000, automaticRetries: 0 });
   });
 
   it.each([
@@ -37,7 +37,7 @@ describe("clone security policy", () => {
     ["fatal: could not read Username for 'https://github.com': terminal prompts disabled", "download", "REPOSITORY_UNAVAILABLE"],
     ["fatal: unable to access: Could not resolve host: github.com", "download", "TRANSPORT_ERROR"],
     ["fatal: object file is corrupt", "verification", "VERIFICATION_FAILED"],
-    ["fatal: early EOF", "download", "NETWORK_ERROR"]
+    ["fatal: early EOF", "download", "GIT_FAILED"]
   ] as const)("classifies safe Git failure %s", (output, operation, code) => expect(classifyGitFailure(output, operation).code).toBe(code));
 
   it("does not expose credential-bearing diagnostics in provider errors", () => {
@@ -47,7 +47,24 @@ describe("clone security policy", () => {
     }
   });
 
-  it.each([["EEXIST", "PATH_COLLISION"], ["EACCES", "PERMISSION_DENIED"], ["ENOSPC", "RESOURCE_LIMIT"], ["EDQUOT", "RESOURCE_LIMIT"]] as const)("maps filesystem fault %s", (fsCode, expected) => {
+  it.each([["EEXIST", "PATH_COLLISION"], ["EACCES", "PERMISSION_DENIED"], ["ENOSPC", "DISK_FULL"], ["EDQUOT", "DISK_FULL"]] as const)("maps filesystem fault %s", (fsCode, expected) => {
     expect(mapCloneError(Object.assign(new Error("synthetic"), { code: fsCode })).code).toBe(expected);
+  });
+
+  it("keeps structured Git output and diagnostics in separate hard-bounded buffers", () => {
+    const output = new BoundedGitOutput();
+    output.append("stdout", Buffer.alloc(CLONE_LIMITS.diagnosticBytes + 1, "a"));
+    expect(output.stdout).toHaveLength(CLONE_LIMITS.diagnosticBytes + 1);
+    expect(() => output.append("stderr", Buffer.alloc(CLONE_LIMITS.diagnosticBytes + 1, "x"))).toThrowError(expect.objectContaining({ code: "DIAGNOSTIC_LIMIT" }));
+  });
+
+  it("rejects oversized structured output without accumulating it", () => {
+    const output = new BoundedGitOutput();
+    expect(() => output.append("stdout", Buffer.alloc(CLONE_LIMITS.structuredOutputBytes + 1))).toThrowError(expect.objectContaining({ code: "RESOURCE_LIMIT" }));
+    expect(output.stdout).toBe("");
+  });
+
+  it("adds a safe operation stage to otherwise unknown failures", () => {
+    expect(mapCloneError(new Error("raw private detail"), "staging setup")).toMatchObject({ code: "INTERNAL_ERROR", message: "The clone could not be completed safely during staging setup." });
   });
 });

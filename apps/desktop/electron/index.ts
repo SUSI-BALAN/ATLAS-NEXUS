@@ -5,7 +5,7 @@ import { FolderService } from "./folderService.js";
 import { registerIpc } from "./ipc.js";
 import { secureWindowOptions } from "./windowPolicy.js";
 import { startStartupDiagnostics } from "./startupDiagnostics.js";
-import { installContentSecurityPolicy } from "./contentSecurityPolicy.js";
+import { installContentSecurityPolicy, usesDevelopmentContentSecurityPolicy } from "./contentSecurityPolicy.js";
 import { preloadPath } from "./runtimePaths.js";
 import { CloneService } from "./cloneService.js";
 
@@ -45,7 +45,7 @@ app.whenReady().then(async () => {
   app.setAppUserModelId("com.atlasnexus.desktop");
   session.defaultSession.setPermissionRequestHandler((_webContents, _permission, callback) => callback(false));
   session.defaultSession.setPermissionCheckHandler(() => false);
-  installContentSecurityPolicy(session.defaultSession, !app.isPackaged);
+  installContentSecurityPolicy(session.defaultSession, usesDevelopmentContentSecurityPolicy(app.isPackaged, process.env.ELECTRON_RENDERER_URL));
   try { await createWindow(); } catch (error) { diagnostics.record("startup-failed", { name: (error as Error).name }); console.error("Atlas Nexus failed to start", { errorName: (error as Error).name }); app.quit(); }
   app.on("activate", () => { if (BrowserWindow.getAllWindows().length === 0) void createWindow(); });
 });
