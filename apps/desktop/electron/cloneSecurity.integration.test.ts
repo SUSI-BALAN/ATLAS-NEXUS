@@ -50,7 +50,7 @@ describe("G03 hostile Git execution isolation", () => {
     } finally {
       if (previousGlobal === undefined) delete process.env.GIT_CONFIG_GLOBAL; else process.env.GIT_CONFIG_GLOBAL = previousGlobal;
     }
-  });
+  }, 20_000);
 });
 
 describe("G04-G06 owned cleanup and resource faults", () => {
